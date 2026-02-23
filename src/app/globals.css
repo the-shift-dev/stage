@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
     --background: 0 0% 100%;
     --foreground: 222.2 47.4% 11.2%;
@@ -31,9 +35,9 @@
     --radius: 0.5rem;
 
     --spacing: 0.5rem;
-  }
+}
 
-  .dark {
+.dark {
     --background: 224 71% 4%;
     --foreground: 213 31% 91%;
 
@@ -65,10 +69,12 @@
 }
 
 * {
-  border-color: hsl(var(--border));
+    border-color: hsl(var(--border));
 }
 body {
-  background-color: hsl(var(--background));
-  color: hsl(var(--foreground));
-  font-feature-settings: "rlig" 1, "calt" 1;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-feature-settings:
+        'rlig' 1,
+        'calt' 1;
 }
