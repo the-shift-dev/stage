@@ -1,28 +1,27 @@
 'use client';
 
 import { ConvexProvider, ConvexReactClient } from 'convex/react';
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useMemo } from 'react';
 
-const url = process.env.NEXT_PUBLIC_CONVEX_URL;
-console.log('[ConvexClientProvider] URL:', url);
-
-const convex = url ? new ConvexReactClient(url) : null;
+// Get URL at module level (build time)
+const CONVEX_URL = process.env.NEXT_PUBLIC_CONVEX_URL;
 
 export default function ConvexClientProvider({ children }: { children: ReactNode }) {
-    const [mounted, setMounted] = useState(false);
-    
-    useEffect(() => {
-        setMounted(true);
-        console.log('[ConvexClientProvider] Mounted, URL:', url);
+    // Create client once and memoize
+    const client = useMemo(() => {
+        if (!CONVEX_URL) return null;
+        console.log('[ConvexClientProvider] Creating client for:', CONVEX_URL);
+        return new ConvexReactClient(CONVEX_URL);
     }, []);
 
-    if (!url || !convex) {
+    if (!CONVEX_URL || !client) {
         return (
-            <div style={{ padding: 40, color: 'red' }}>
-                Missing NEXT_PUBLIC_CONVEX_URL env var
+            <div style={{ padding: 40, color: 'red', fontFamily: 'monospace' }}>
+                <h2>Missing NEXT_PUBLIC_CONVEX_URL</h2>
+                <p>Set it in .env.local to your Convex deployment URL</p>
             </div>
         );
     }
 
-    return <ConvexProvider client={convex}>{children}</ConvexProvider>;
+    return <ConvexProvider client={client}>{children}</ConvexProvider>;
 }

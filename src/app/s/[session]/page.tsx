@@ -23,13 +23,22 @@ const SessionContent = () => {
     const { session } = useParams<{ session: string }>();
     const [copied, setCopied] = useState(false);
     
+    // Use session string directly (Convex will validate)
     const sessionId = session as Id<'sessions'>;
+    
+    // Use skip if no session
+    const queryArgs = session ? { sessionId } : "skip";
 
-    // Reactive queries
-    const renderState = useQuery(api.stage.getRenderState, { sessionId });
-    const allFiles = useQuery(api.stage.getAllFiles, { sessionId });
-    const liveData = useQuery(api.stage.getLiveData, { sessionId });
-    const messages = useQuery(api.stage.getMessages, { sessionId });
+    // Reactive queries with skip support
+    const renderState = useQuery(api.stage.getRenderState, queryArgs);
+    const allFiles = useQuery(api.stage.getAllFiles, queryArgs);
+    const liveData = useQuery(api.stage.getLiveData, queryArgs);
+    const messages = useQuery(api.stage.getMessages, queryArgs);
+    
+    // Debug logging
+    console.log('[SessionContent] session:', session, 'queryArgs:', queryArgs);
+    console.log('[SessionContent] renderState:', renderState);
+    console.log('[SessionContent] allFiles:', allFiles);
     
     // Mutations for components to use
     const sendMessage = useMutation(api.stage.sendMessage);
