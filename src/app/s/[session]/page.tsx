@@ -22,34 +22,34 @@ export default function SessionPage() {
 const SessionContent = () => {
     const { session } = useParams<{ session: string }>();
     const [copied, setCopied] = useState(false);
-    
+
     // Use session string directly (Convex will validate)
     const sessionId = session as Id<'sessions'>;
-    
+
     // Use skip if no session
-    const queryArgs = session ? { sessionId } : "skip";
+    const queryArgs = session ? { sessionId } : 'skip';
 
     // Reactive queries with skip support
     const renderState = useQuery(api.stage.getRenderState, queryArgs);
     const allFiles = useQuery(api.stage.getAllFiles, queryArgs);
     const liveData = useQuery(api.stage.getLiveData, queryArgs);
     const messages = useQuery(api.stage.getMessages, queryArgs);
-    
+
     // Debug logging
     console.log('[SessionContent] session:', session, 'queryArgs:', queryArgs);
     console.log('[SessionContent] renderState:', renderState);
     console.log('[SessionContent] allFiles:', allFiles);
-    
+
     // Mutations for components to use
     const sendMessage = useMutation(api.stage.sendMessage);
     const setLiveData = useMutation(api.stage.setLiveData);
-    
+
     // Create convex context for components
     const convexContext = {
         liveData,
         messages,
         sendMessage: (text: string, sender: string) => sendMessage({ sessionId, text, sender }),
-        setLiveData: (data: any) => setLiveData({ sessionId, data }),
+        setLiveData: (data: any) => setLiveData({ sessionId, data })
     };
 
     // Convert files array to Record<path, content>
@@ -243,11 +243,11 @@ Always pass --session ${s} on every command.`;
     // Render the component with all files
     return (
         <div className="min-h-0" style={{ minHeight: 0 }}>
-            <DynamicComponent 
+            <DynamicComponent
                 code={entryCode}
                 files={filesMap}
                 entryPath={entryPath}
-                sessionId={session} 
+                sessionId={session}
                 convexContext={convexContext}
             />
         </div>

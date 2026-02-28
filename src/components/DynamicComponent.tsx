@@ -220,8 +220,8 @@ interface ConvexContext {
 
 interface DynamicComponentProps {
     code: string;
-    files?: Record<string, string>;  // All session files
-    entryPath?: string;              // Entry point path
+    files?: Record<string, string>; // All session files
+    entryPath?: string; // Entry point path
     sessionId: string | null;
     convexContext?: ConvexContext;
 }
@@ -234,13 +234,13 @@ function compileModule(code: string, scope: Record<string, any>): Record<string,
             transforms: ['typescript', 'jsx', 'imports'],
             jsxRuntime: 'classic',
             jsxPragma: 'React.createElement',
-            jsxFragmentPragma: 'React.Fragment',
+            jsxFragmentPragma: 'React.Fragment'
         }).code;
 
         // Create a module-like environment
         const exports: Record<string, any> = {};
-        const module = { exports };
-        
+        const moduleObj = { exports };
+
         // Build require function for this module
         const require = (name: string) => {
             if (scope.import && scope.import[name]) return scope.import[name];
@@ -249,13 +249,11 @@ function compileModule(code: string, scope: Record<string, any>): Record<string,
 
         // Execute the compiled code
         const fn = new Function('exports', 'module', 'require', 'React', compiled);
-        fn(exports, module, require, ReactExports);
+        fn(exports, moduleObj, require, ReactExports);
 
-        // Return all exports (module.exports or exports object)
-        const result = module.exports && Object.keys(module.exports).length > 0 
-            ? module.exports 
-            : exports;
-        
+        // Return all exports (moduleObj.exports or exports object)
+        const result = moduleObj.exports && Object.keys(moduleObj.exports).length > 0 ? moduleObj.exports : exports;
+
         return result;
     } catch (e) {
         console.error('Failed to compile module:', e);
@@ -269,11 +267,11 @@ function toRelativePath(fromPath: string, toPath: string): string {
     const fromDir = fromPath.substring(0, fromPath.lastIndexOf('/'));
     const toDir = toPath.substring(0, toPath.lastIndexOf('/'));
     const toFile = toPath.substring(toPath.lastIndexOf('/') + 1).replace(/\.(tsx?|jsx?)$/, '');
-    
+
     if (fromDir === toDir) {
         return './' + toFile;
     }
-    
+
     // For now, just use the path without extension
     return toPath.replace(/\.(tsx?|jsx?)$/, '');
 }
@@ -476,13 +474,13 @@ export default function DynamicComponent({ code, files, entryPath, sessionId, co
         // Add session files as importable modules
         if (files && entryPath) {
             const compiledModules: Record<string, any> = {};
-            
+
             for (const [path, content] of Object.entries(files)) {
                 if (path === entryPath) continue; // Don't compile entry point here
-                
+
                 // Compile the module
                 const compiled = compileModule(content, baseScope);
-                
+
                 // Add under multiple import paths:
                 // 1. Full path: /app/Button.tsx
                 // 2. Without extension: /app/Button
@@ -490,11 +488,11 @@ export default function DynamicComponent({ code, files, entryPath, sessionId, co
                 const pathWithoutExt = path.replace(/\.(tsx?|jsx?)$/, '');
                 const fileName = path.substring(path.lastIndexOf('/') + 1).replace(/\.(tsx?|jsx?)$/, '');
                 const relativePath = './' + fileName;
-                
+
                 baseScope.import[path] = compiled;
                 baseScope.import[pathWithoutExt] = compiled;
                 baseScope.import[relativePath] = compiled;
-                
+
                 compiledModules[path] = compiled;
             }
         }

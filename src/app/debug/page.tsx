@@ -13,7 +13,7 @@ export default function DebugPage() {
     const handleTest = async () => {
         const target = `${url}/api/mutation`;
         setResult(`Fetching: ${target}\n`);
-        
+
         try {
             const res = await fetch(target, {
                 method: 'POST',
@@ -24,32 +24,34 @@ export default function DebugPage() {
                     args: {}
                 })
             });
-            
+
             const text = await res.text();
-            setResult(prev => prev + `Status: ${res.status}\nBody: ${text}`);
+            setResult((prev) => prev + `Status: ${res.status}\nBody: ${text}`);
         } catch (e: any) {
-            setResult(prev => prev + `Error: ${e.name}\nMessage: ${e.message}\nStack: ${e.stack}`);
+            setResult((prev) => prev + `Error: ${e.name}\nMessage: ${e.message}\nStack: ${e.stack}`);
         }
     };
 
     const handleTestVersion = async () => {
         const target = `${url}/version`;
         setResult(`Fetching: ${target}\n`);
-        
+
         try {
             const res = await fetch(target);
             const text = await res.text();
-            setResult(prev => prev + `Status: ${res.status}\nBody: ${text}`);
+            setResult((prev) => prev + `Status: ${res.status}\nBody: ${text}`);
         } catch (e: any) {
-            setResult(prev => prev + `Error: ${e.name}\nMessage: ${e.message}`);
+            setResult((prev) => prev + `Error: ${e.name}\nMessage: ${e.message}`);
         }
     };
 
     return (
         <div style={{ padding: 40, fontFamily: 'monospace' }}>
             <h1>Debug</h1>
-            <p>NEXT_PUBLIC_CONVEX_URL: <strong>{url}</strong></p>
-            
+            <p>
+                NEXT_PUBLIC_CONVEX_URL: <strong>{url}</strong>
+            </p>
+
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
                 <button onClick={handleTestVersion} style={{ padding: '10px 20px' }}>
                     Test /version (GET)
