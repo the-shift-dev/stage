@@ -1,6 +1,6 @@
 import { parse } from '@babel/parser';
 import traverse from '@babel/traverse';
-import { ALLOWED_IMPORTS_SET } from './allowedImports';
+import { isImportAllowed } from './allowedImports';
 
 const DANGEROUS_GLOBALS = new Set([
     'require',
@@ -48,7 +48,7 @@ export function validateUserCode(code: string): ValidationResult {
             // Check imports - only allow whitelisted ones
             ImportDeclaration(path) {
                 const importPath = path.node.source.value;
-                if (!ALLOWED_IMPORTS_SET.has(importPath)) {
+                if (!isImportAllowed(importPath)) {
                     violations.push(`Unauthorized import: ${importPath}`);
                 }
             },

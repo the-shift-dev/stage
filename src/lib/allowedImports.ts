@@ -57,6 +57,14 @@ export const ALLOWED_IMPORTS_SET = new Set(ALLOWED_IMPORT_PATHS as readonly stri
 
 // Helper function to validate if an import path is allowed
 export function isImportAllowed(importPath: string): boolean {
+    // Allow relative imports (for multi-file sessions)
+    if (importPath.startsWith('./') || importPath.startsWith('../')) {
+        return true;
+    }
+    // Allow absolute paths to session files (e.g., /app/Button)
+    if (importPath.startsWith('/app/') || importPath.startsWith('/app.')) {
+        return true;
+    }
     return ALLOWED_IMPORTS_SET.has(importPath);
 }
 

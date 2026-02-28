@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
@@ -22,12 +22,12 @@ export default function SessionPage() {
 const SessionContent = () => {
     const { session } = useParams<{ session: string }>();
     const [copied, setCopied] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     
     const sessionId = session as Id<'sessions'>;
 
-    // Reactive queries — update instantly when mutations fire
+    // Reactive queries
     const renderState = useQuery(api.stage.getRenderState, { sessionId });
+    const allFiles = useQuery(api.stage.getAllFiles, { sessionId });
     const liveData = useQuery(api.stage.getLiveData, { sessionId });
     const messages = useQuery(api.stage.getMessages, { sessionId });
     
@@ -35,7 +35,7 @@ const SessionContent = () => {
     const sendMessage = useMutation(api.stage.sendMessage);
     const setLiveData = useMutation(api.stage.setLiveData);
     
-    // Create a convex context object to pass to components
+    // Create convex context for components
     const convexContext = {
         liveData,
         messages,
@@ -43,24 +43,23 @@ const SessionContent = () => {
         setLiveData: (data: any) => setLiveData({ sessionId, data }),
     };
 
-    // Error state
-    if (error) {
-        return (
-            <div style={{ padding: 40, color: 'red', fontFamily: 'monospace' }}>
-                <h2>Error connecting to Convex</h2>
-                <pre>{error}</pre>
-                <p>URL: {process.env.NEXT_PUBLIC_CONVEX_URL}</p>
-            </div>
-        );
-    }
+    // Convert files array to Record<path, content>
+    const filesMap = useMemo(() => {
+        if (!allFiles) return {};
+        const map: Record<string, string> = {};
+        for (const file of allFiles) {
+            map[file.path] = file.content;
+        }
+        return map;
+    }, [allFiles]);
 
     // Loading state
-    if (renderState === undefined) {
+    if (renderState === undefined || allFiles === undefined) {
         return <Loader />;
     }
 
     // No code yet — show instructions
-    if (!renderState?.code) {
+    if (!renderState || Object.keys(filesMap).length === 0) {
         const s = session;
         const prompt = `You have access to Stage — a sandboxed React runtime that renders components live in the browser.
 
@@ -219,11 +218,26 @@ Always pass --session ${s} on every command.`;
         );
     }
 
-    // Render the component
+    // Get entry point code
+    const entryPath = renderState.entry || '/app/App.tsx';
+    const entryCode = filesMap[entryPath];
+
+    if (!entryCode) {
+        return (
+            <div style={{ padding: 40, color: '#666', fontFamily: 'monospace' }}>
+                <h2>Entry point not found: {entryPath}</h2>
+                <p>Files available: {Object.keys(filesMap).join(', ') || 'none'}</p>
+            </div>
+        );
+    }
+
+    // Render the component with all files
     return (
         <div className="min-h-0" style={{ minHeight: 0 }}>
             <DynamicComponent 
-                code={renderState.code} 
+                code={entryCode}
+                files={filesMap}
+                entryPath={entryPath}
                 sessionId={session} 
                 convexContext={convexContext}
             />

@@ -3,6 +3,7 @@
 import { useMemo, useState, useCallback, useRef } from 'react';
 import { createKV, type StageKV } from '@/lib/kv';
 import ValidatedRunner from './ValidatedRunner';
+import { transform } from 'sucrase';
 
 // Import all libraries that should be available in execution scope
 import _ from 'lodash';
@@ -219,11 +220,65 @@ interface ConvexContext {
 
 interface DynamicComponentProps {
     code: string;
+    files?: Record<string, string>;  // All session files
+    entryPath?: string;              // Entry point path
     sessionId: string | null;
     convexContext?: ConvexContext;
 }
 
-export default function DynamicComponent({ code, sessionId, convexContext }: DynamicComponentProps) {
+// Compile a module and execute it to get exports
+function compileModule(code: string, scope: Record<string, any>): Record<string, any> {
+    try {
+        // Transform TypeScript, JSX, AND imports to CommonJS
+        const compiled = transform(code, {
+            transforms: ['typescript', 'jsx', 'imports'],
+            jsxRuntime: 'classic',
+            jsxPragma: 'React.createElement',
+            jsxFragmentPragma: 'React.Fragment',
+        }).code;
+
+        // Create a module-like environment
+        const exports: Record<string, any> = {};
+        const module = { exports };
+        
+        // Build require function for this module
+        const require = (name: string) => {
+            if (scope.import && scope.import[name]) return scope.import[name];
+            throw new Error(`Module not found: ${name}`);
+        };
+
+        // Execute the compiled code
+        const fn = new Function('exports', 'module', 'require', 'React', compiled);
+        fn(exports, module, require, ReactExports);
+
+        // Return all exports (module.exports or exports object)
+        const result = module.exports && Object.keys(module.exports).length > 0 
+            ? module.exports 
+            : exports;
+        
+        return result;
+    } catch (e) {
+        console.error('Failed to compile module:', e);
+        return {};
+    }
+}
+
+// Convert absolute path to relative import path
+function toRelativePath(fromPath: string, toPath: string): string {
+    // Simple case: same directory
+    const fromDir = fromPath.substring(0, fromPath.lastIndexOf('/'));
+    const toDir = toPath.substring(0, toPath.lastIndexOf('/'));
+    const toFile = toPath.substring(toPath.lastIndexOf('/') + 1).replace(/\.(tsx?|jsx?)$/, '');
+    
+    if (fromDir === toDir) {
+        return './' + toFile;
+    }
+    
+    // For now, just use the path without extension
+    return toPath.replace(/\.(tsx?|jsx?)$/, '');
+}
+
+export default function DynamicComponent({ code, files, entryPath, sessionId, convexContext }: DynamicComponentProps) {
     const [error, setError] = useState<string | null>(null);
     const kvRef = useRef<StageKV | null>(null);
 
@@ -404,22 +459,48 @@ export default function DynamicComponent({ code, sessionId, convexContext }: Dyn
                 '@/components/ui/toggle': { Toggle },
                 '@/components/ui/toggle-group': { ToggleGroup, ToggleGroupItem },
                 '@/components/ui/tooltip': { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger }
-            }
+            } as Record<string, any>
         };
 
         if (kvRef.current) {
             (baseScope as any).stage = { kv: kvRef.current };
-            (baseScope.import as any)['@stage/kv'] = { kv: kvRef.current };
+            baseScope.import['@stage/kv'] = { kv: kvRef.current };
         }
 
         // Add Convex context for live data access
         if (convexContext) {
             (baseScope as any).convex = convexContext;
-            (baseScope.import as any)['@stage/convex'] = convexContext;
+            baseScope.import['@stage/convex'] = convexContext;
+        }
+
+        // Add session files as importable modules
+        if (files && entryPath) {
+            const compiledModules: Record<string, any> = {};
+            
+            for (const [path, content] of Object.entries(files)) {
+                if (path === entryPath) continue; // Don't compile entry point here
+                
+                // Compile the module
+                const compiled = compileModule(content, baseScope);
+                
+                // Add under multiple import paths:
+                // 1. Full path: /app/Button.tsx
+                // 2. Without extension: /app/Button
+                // 3. Relative from entry: ./Button
+                const pathWithoutExt = path.replace(/\.(tsx?|jsx?)$/, '');
+                const fileName = path.substring(path.lastIndexOf('/') + 1).replace(/\.(tsx?|jsx?)$/, '');
+                const relativePath = './' + fileName;
+                
+                baseScope.import[path] = compiled;
+                baseScope.import[pathWithoutExt] = compiled;
+                baseScope.import[relativePath] = compiled;
+                
+                compiledModules[path] = compiled;
+            }
         }
 
         return baseScope;
-    }, [convexContext]);
+    }, [convexContext, files, entryPath]);
 
     const handleError = useCallback((err: string) => {
         setError(err);
