@@ -213,9 +213,9 @@ if (typeof window !== 'undefined') {
 
 interface ConvexContext {
     liveData: any;
-    messages: any[];
-    sendMessage: (text: string, sender: string) => Promise<void>;
-    setLiveData: (data: any) => Promise<void>;
+    messages: any[] | undefined;
+    sendMessage: (text: string, sender: string) => Promise<any>;
+    setLiveData: (data: any) => Promise<any>;
 }
 
 interface DynamicComponentProps {
