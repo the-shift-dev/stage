@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { ReactNode } from 'react';
+import ConvexClientProvider from '@/components/ConvexClientProvider';
 
 export const metadata: Metadata = {
     title: 'Stage',
@@ -10,7 +11,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
     return (
         <html lang="en">
-            <body className="antialiased">{children}</body>
+            <body className="antialiased">
+                <ConvexClientProvider>{children}</ConvexClientProvider>
+            </body>
         </html>
     );
 }

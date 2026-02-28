@@ -210,12 +210,20 @@ if (typeof window !== 'undefined') {
     }
 }
 
+interface ConvexContext {
+    liveData: any;
+    messages: any[];
+    sendMessage: (text: string, sender: string) => Promise<void>;
+    setLiveData: (data: any) => Promise<void>;
+}
+
 interface DynamicComponentProps {
     code: string;
     sessionId: string | null;
+    convexContext?: ConvexContext;
 }
 
-export default function DynamicComponent({ code, sessionId }: DynamicComponentProps) {
+export default function DynamicComponent({ code, sessionId, convexContext }: DynamicComponentProps) {
     const [error, setError] = useState<string | null>(null);
     const kvRef = useRef<StageKV | null>(null);
 
@@ -404,8 +412,14 @@ export default function DynamicComponent({ code, sessionId }: DynamicComponentPr
             (baseScope.import as any)['@stage/kv'] = { kv: kvRef.current };
         }
 
+        // Add Convex context for live data access
+        if (convexContext) {
+            (baseScope as any).convex = convexContext;
+            (baseScope.import as any)['@stage/convex'] = convexContext;
+        }
+
         return baseScope;
-    }, []);
+    }, [convexContext]);
 
     const handleError = useCallback((err: string) => {
         setError(err);

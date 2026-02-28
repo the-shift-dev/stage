@@ -1,7 +1,10 @@
 'use client';
 
-import { Suspense, useEffect, useRef, useState, useCallback } from 'react';
+import { Suspense, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { useQuery, useMutation } from 'convex/react';
+import { api } from '../../../../convex/_generated/api';
+import { Id } from '../../../../convex/_generated/dataModel';
 import DynamicComponent from '@/components/DynamicComponent';
 import Loader from '@/components/Loader';
 import TailwindProvider from '@/components/TailwindProvider';
@@ -18,53 +21,46 @@ export default function SessionPage() {
 
 const SessionContent = () => {
     const { session } = useParams<{ session: string }>();
-    const [componentCode, setComponentCode] = useState<string>('');
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
-    const versionRef = useRef(0);
-    const componentContainerRef = useRef<HTMLDivElement>(null);
+    const [error, setError] = useState<string | null>(null);
+    
+    const sessionId = session as Id<'sessions'>;
 
-    // Poll this session's render state
-    useEffect(() => {
-        let first = true;
-        let pollMs = 2000; // start at 2s
-        let unchanged = 0;
-        let timer: ReturnType<typeof setTimeout>;
+    // Reactive queries — update instantly when mutations fire
+    const renderState = useQuery(api.stage.getRenderState, { sessionId });
+    const liveData = useQuery(api.stage.getLiveData, { sessionId });
+    const messages = useQuery(api.stage.getMessages, { sessionId });
+    
+    // Mutations for components to use
+    const sendMessage = useMutation(api.stage.sendMessage);
+    const setLiveData = useMutation(api.stage.setLiveData);
+    
+    // Create a convex context object to pass to components
+    const convexContext = {
+        liveData,
+        messages,
+        sendMessage: (text: string, sender: string) => sendMessage({ sessionId, text, sender }),
+        setLiveData: (data: any) => setLiveData({ sessionId, data }),
+    };
 
-        async function poll() {
-            try {
-                const res = await fetch(`/api/stage/render?session=${session}`);
-                const data = await res.json();
-                if (data.code && data.version > versionRef.current) {
-                    versionRef.current = data.version;
-                    setComponentCode(data.code);
-                    setIsLoading(false);
-                    setError(null);
-                    // Reset to fast polling after an update
-                    pollMs = 2000;
-                    unchanged = 0;
-                } else if (first && !data.code) {
-                    setIsLoading(false);
-                } else {
-                    // Back off: 2s → 3s → 5s → 8s → 10s max
-                    unchanged++;
-                    if (unchanged > 5) pollMs = Math.min(pollMs + 1000, 10000);
-                }
-                first = false;
-            } catch {}
-            timer = setTimeout(poll, pollMs);
-        }
+    // Error state
+    if (error) {
+        return (
+            <div style={{ padding: 40, color: 'red', fontFamily: 'monospace' }}>
+                <h2>Error connecting to Convex</h2>
+                <pre>{error}</pre>
+                <p>URL: {process.env.NEXT_PUBLIC_CONVEX_URL}</p>
+            </div>
+        );
+    }
 
-        poll();
-        return () => clearTimeout(timer);
-    }, [session]);
-
-    if (isLoading) {
+    // Loading state
+    if (renderState === undefined) {
         return <Loader />;
     }
 
-    if (!componentCode) {
+    // No code yet — show instructions
+    if (!renderState?.code) {
         const s = session;
         const prompt = `You have access to Stage — a sandboxed React runtime that renders components live in the browser.
 
@@ -144,13 +140,7 @@ Always pass --session ${s} on every command.`;
                                 <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#febc2e' }} />
                                 <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#28c840' }} />
                             </div>
-                            <div
-                                style={{
-                                    fontSize: 12,
-                                    color: '#555',
-                                    fontFamily: 'system-ui'
-                                }}
-                            >
+                            <div style={{ fontSize: 12, color: '#555', fontFamily: 'system-ui' }}>
                                 stage — {session}
                             </div>
                             <button
@@ -229,17 +219,14 @@ Always pass --session ${s} on every command.`;
         );
     }
 
-    if (error) {
-        return (
-            <div className="flex items-center justify-center min-h-screen p-4">
-                <p className="text-red-500">{error}</p>
-            </div>
-        );
-    }
-
+    // Render the component
     return (
-        <div className="min-h-0" ref={componentContainerRef} style={{ minHeight: 0 }}>
-            <DynamicComponent code={componentCode} sessionId={session} />
+        <div className="min-h-0" style={{ minHeight: 0 }}>
+            <DynamicComponent 
+                code={renderState.code} 
+                sessionId={session} 
+                convexContext={convexContext}
+            />
         </div>
     );
 };

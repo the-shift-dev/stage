@@ -49,7 +49,8 @@ export const ALLOWED_IMPORT_PATHS = [
     '@/components/ui/toggle-group',
     '@/components/ui/tooltip',
     '@stage/kv',
-    '@stage/db'
+    '@stage/db',
+    '@stage/convex'
 ] as const;
 
 export const ALLOWED_IMPORTS_SET = new Set(ALLOWED_IMPORT_PATHS as readonly string[]);
