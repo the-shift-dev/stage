@@ -154,7 +154,7 @@ export const createSnapshot = mutation({
     const files = Array.from(latestByPath.values()).map((f) => ({
       path: f.path,
       content: f.content,
-      version: f.version,
+      version: f.version ?? 1,
     }));
 
     const snapshotId = await ctx.db.insert("snapshots", {
