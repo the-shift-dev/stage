@@ -40,7 +40,7 @@ export const writeFile = mutation({
       .order("desc")
       .first();
 
-    const newVersion = existing ? existing.version + 1 : 1;
+    const newVersion = existing && existing.version ? existing.version + 1 : 1;
 
     // Insert new version
     await ctx.db.insert("files", {
@@ -194,7 +194,7 @@ export const restoreSnapshot = mutation({
         .order("desc")
         .first();
 
-      const newVersion = existing ? existing.version + 1 : 1;
+      const newVersion = existing && existing.version ? existing.version + 1 : 1;
 
       await ctx.db.insert("files", {
         sessionId: snapshot.sessionId,
