@@ -209,9 +209,55 @@ npm uninstall @vercel/sandbox just-bash
 
 ---
 
+## Deployment Options
+
+### Option 1: Convex Cloud (Recommended)
+
+1. Create account at https://convex.dev
+2. Create a new project
+3. Deploy Convex functions:
+   ```bash
+   npx convex deploy
+   ```
+4. Set environment variables:
+   ```bash
+   # .env.local
+   NEXT_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
+   ```
+5. Deploy Stage frontend to Vercel/Netlify/Cloudflare
+
+### Option 2: Self-Hosted (Fly.io)
+
+1. Deploy Convex backend to Fly.io:
+   ```bash
+   cd convex-backend/self-hosted/fly/backend
+   fly launch
+   fly secrets set CONVEX_CLOUD_ORIGIN="https://your-app.fly.dev"
+   ```
+2. Generate admin key:
+   ```bash
+   fly ssh console --command "./generate_admin_key.sh"
+   ```
+3. Deploy Stage frontend to Vercel with env vars:
+   ```bash
+   NEXT_PUBLIC_CONVEX_URL=https://your-app.fly.dev
+   ```
+
+### CLI Configuration
+
+```bash
+# Convex Cloud
+export CONVEX_URL=https://your-deployment.convex.cloud
+
+# Self-hosted
+export CONVEX_SELF_HOSTED_URL=https://your-app.fly.dev
+export CONVEX_SELF_HOSTED_ADMIN_KEY=your-key
+
+# Stage frontend URL (for session links)
+export STAGE_URL=https://your-stage-app.vercel.app
+```
+
 ## Remaining Tasks
 
-- [ ] CLI migration (stage CLI → Convex mutations)
 - [ ] Add Convex Auth for user sessions
-- [ ] Production deploy
-- [ ] File storage for large files (self-hosted API differs)
+- [ ] File storage for large files (cloud supports it, self-hosted API differs)
