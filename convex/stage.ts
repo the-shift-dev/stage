@@ -218,6 +218,7 @@ export const triggerRender = mutation({
   },
   handler: async (ctx, { sessionId, entry }) => {
     const entryPoint = entry || "/app/App.tsx";
+    const now = Date.now();
 
     const existing = await ctx.db
       .query("renderState")
@@ -228,6 +229,8 @@ export const triggerRender = mutation({
       await ctx.db.patch(existing._id, {
         entry: entryPoint,
         version: existing.version + 1,
+        error: undefined, // Clear previous error on new render
+        renderedAt: now,
       });
       return { entry: entryPoint, version: existing.version + 1 };
     } else {
@@ -235,6 +238,7 @@ export const triggerRender = mutation({
         sessionId,
         entry: entryPoint,
         version: 1.0,
+        renderedAt: now,
       });
       return { entry: entryPoint, version: 1.0 };
     }
@@ -248,6 +252,70 @@ export const getRenderState = query({
       .query("renderState")
       .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
       .first();
+  },
+});
+
+export const reportError = mutation({
+  args: {
+    sessionId: v.id("sessions"),
+    error: v.string(),
+  },
+  handler: async (ctx, { sessionId, error }) => {
+    const existing = await ctx.db
+      .query("renderState")
+      .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, { error });
+    }
+  },
+});
+
+export const clearError = mutation({
+  args: { sessionId: v.id("sessions") },
+  handler: async (ctx, { sessionId }) => {
+    const existing = await ctx.db
+      .query("renderState")
+      .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, { error: undefined });
+    }
+  },
+});
+
+export const getStatus = query({
+  args: { sessionId: v.id("sessions") },
+  handler: async (ctx, { sessionId }) => {
+    const session = await ctx.db.get(sessionId);
+    const renderState = await ctx.db
+      .query("renderState")
+      .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+      .first();
+    const files = await ctx.db
+      .query("files")
+      .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+      .collect();
+
+    return {
+      session: session ? {
+        createdAt: session.createdAt,
+        lastAccessedAt: session.lastAccessedAt,
+      } : null,
+      render: renderState ? {
+        entry: renderState.entry,
+        version: renderState.version,
+        error: renderState.error || null,
+        renderedAt: renderState.renderedAt || null,
+      } : null,
+      files: files.map(f => ({
+        path: f.path,
+        version: f.version || 1,
+        size: f.content.length,
+      })),
+    };
   },
 });
 

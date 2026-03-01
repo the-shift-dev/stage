@@ -43,13 +43,15 @@ const SessionContent = () => {
     // Mutations for components to use
     const sendMessage = useMutation(api.stage.sendMessage);
     const setLiveData = useMutation(api.stage.setLiveData);
+    const reportError = useMutation(api.stage.reportError);
 
     // Create convex context for components
     const convexContext = {
         liveData,
         messages,
         sendMessage: (text: string, sender: string) => sendMessage({ sessionId, text, sender }),
-        setLiveData: (data: any) => setLiveData({ sessionId, data })
+        setLiveData: (data: any) => setLiveData({ sessionId, data }),
+        reportError: (error: string) => reportError({ sessionId, error })
     };
 
     // Convert files array to Record<path, content>

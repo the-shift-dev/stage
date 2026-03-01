@@ -216,6 +216,7 @@ interface ConvexContext {
     messages: any[] | undefined;
     sendMessage: (text: string, sender: string) => Promise<any>;
     setLiveData: (data: any) => Promise<any>;
+    reportError?: (error: string) => Promise<any>;
 }
 
 interface DynamicComponentProps {
@@ -500,9 +501,18 @@ export default function DynamicComponent({ code, files, entryPath, sessionId, co
         return baseScope;
     }, [convexContext, files, entryPath]);
 
-    const handleError = useCallback((err: string) => {
-        setError(err);
-    }, []);
+    const handleError = useCallback(
+        (err: string) => {
+            setError(err);
+            // Report error to Convex so CLI can see it
+            if (convexContext?.reportError) {
+                convexContext.reportError(err).catch(() => {
+                    // Ignore error reporting failures
+                });
+            }
+        },
+        [convexContext]
+    );
 
     if (!code) {
         return null;

@@ -38,6 +38,8 @@ export default defineSchema({
     sessionId: v.id("sessions"),
     entry: v.string(),
     version: v.number(),
+    error: v.optional(v.string()),
+    renderedAt: v.optional(v.number()),
   }).index("by_session", ["sessionId"]),
 
   // KV store
