@@ -63,4 +63,31 @@ export default defineSchema({
     sender: v.string(),
     createdAt: v.number(),
   }).index("by_session", ["sessionId"]),
+
+  // End-User Google Auth
+  googleScopes: defineTable({
+    sessionId: v.id("sessions"),
+    scopes: v.array(v.string()),
+    updatedAt: v.number(),
+  }).index("by_session", ["sessionId"]),
+
+  userAuth: defineTable({
+    sessionId: v.id("sessions"),
+    email: v.string(),
+    name: v.string(),
+    picture: v.string(),
+    passportAuthorizationId: v.string(),
+    scopes: v.array(v.string()),
+    status: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_session_email", ["sessionId", "email"]),
+
+  secrets: defineTable({
+    key: v.string(),
+    value: v.string(),
+    updatedAt: v.number(),
+  }).index("by_key", ["key"]),
 });

@@ -1,13 +1,15 @@
 'use client';
 
-import { Suspense, useState, useMemo } from 'react';
+import { Suspense, useState, useMemo, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 import DynamicComponent from '@/components/DynamicComponent';
+import AuthGate from '@/components/AuthGate';
 import Loader from '@/components/Loader';
 import TailwindProvider from '@/components/TailwindProvider';
+import { createGoogleClient, type GoogleClient, type GoogleUser } from '@/lib/googleClient';
 
 export default function SessionPage() {
     return (
@@ -22,6 +24,8 @@ export default function SessionPage() {
 const SessionContent = () => {
     const { session } = useParams<{ session: string }>();
     const [copied, setCopied] = useState(false);
+    const [googleAuthUser, setGoogleAuthUser] = useState<GoogleUser | null>(null);
+    const [googleAuthChecked, setGoogleAuthChecked] = useState(false);
 
     // Use session string directly (Convex will validate)
     const sessionId = session as Id<'sessions'>;
@@ -34,11 +38,32 @@ const SessionContent = () => {
     const allFiles = useQuery(api.stage.getAllFiles, queryArgs);
     const liveData = useQuery(api.stage.getLiveData, queryArgs);
     const messages = useQuery(api.stage.getMessages, queryArgs);
+    const googleScopes = useQuery(api.stage.getGoogleScopes, queryArgs);
 
     // Debug logging
     console.log('[SessionContent] session:', session, 'queryArgs:', queryArgs);
     console.log('[SessionContent] renderState:', renderState);
     console.log('[SessionContent] allFiles:', allFiles);
+
+    // Check end-user Google auth status when scopes are required
+    useEffect(() => {
+        if (!session || !googleScopes || googleScopes.length === 0) {
+            setGoogleAuthChecked(true);
+            return;
+        }
+
+        fetch(`/auth/stage/me?session=${encodeURIComponent(session)}`, { credentials: 'include' })
+            .then((res) => res.json())
+            .then((data) => {
+                if (data.authenticated) {
+                    setGoogleAuthUser({ email: data.email, name: data.name, picture: data.picture });
+                }
+                setGoogleAuthChecked(true);
+            })
+            .catch(() => {
+                setGoogleAuthChecked(true);
+            });
+    }, [session, googleScopes]);
 
     // Mutations for components to use
     const sendMessage = useMutation(api.stage.sendMessage);
@@ -64,9 +89,25 @@ const SessionContent = () => {
         return map;
     }, [allFiles]);
 
+    // Create Google client if user is authenticated
+    const googleClient = useMemo<GoogleClient | undefined>(() => {
+        if (!googleAuthUser || !session) return undefined;
+        return createGoogleClient(googleAuthUser, session);
+    }, [googleAuthUser, session]);
+
     // Loading state
     if (renderState === undefined || allFiles === undefined) {
         return <Loader />;
+    }
+
+    // Wait for google auth check
+    if (googleScopes === undefined || !googleAuthChecked) {
+        return <Loader />;
+    }
+
+    // Auth gate: show "Connect with Google" if scopes required but user not authenticated
+    if (googleScopes && googleScopes.length > 0 && !googleAuthUser) {
+        return <AuthGate sessionId={session} scopes={googleScopes} />;
     }
 
     // No code yet — show instructions
@@ -251,6 +292,7 @@ Always pass --session ${s} on every command.`;
                 entryPath={entryPath}
                 sessionId={session}
                 convexContext={convexContext}
+                googleClient={googleClient}
             />
         </div>
     );

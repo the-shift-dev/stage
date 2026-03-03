@@ -437,3 +437,130 @@ export const clearMessages = mutation({
     }
   },
 });
+
+// ============ Stage Secrets ============
+
+export const setSecret = mutation({
+  args: {
+    key: v.string(),
+    value: v.string(),
+  },
+  handler: async (ctx, { key, value }) => {
+    const existing = await ctx.db
+      .query("secrets")
+      .withIndex("by_key", (q) => q.eq("key", key))
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, { value, updatedAt: Date.now() });
+    } else {
+      await ctx.db.insert("secrets", { key, value, updatedAt: Date.now() });
+    }
+  },
+});
+
+export const getSecret = query({
+  args: { key: v.string() },
+  handler: async (ctx, { key }) => {
+    const entry = await ctx.db
+      .query("secrets")
+      .withIndex("by_key", (q) => q.eq("key", key))
+      .first();
+    return entry?.value ?? null;
+  },
+});
+
+// ============ End-User Google Auth ============
+
+export const setGoogleScopes = mutation({
+  args: {
+    sessionId: v.id("sessions"),
+    scopes: v.array(v.string()),
+  },
+  handler: async (ctx, { sessionId, scopes }) => {
+    const existing = await ctx.db
+      .query("googleScopes")
+      .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, { scopes, updatedAt: Date.now() });
+    } else {
+      await ctx.db.insert("googleScopes", {
+        sessionId,
+        scopes,
+        updatedAt: Date.now(),
+      });
+    }
+  },
+});
+
+export const getGoogleScopes = query({
+  args: { sessionId: v.id("sessions") },
+  handler: async (ctx, { sessionId }) => {
+    const entry = await ctx.db
+      .query("googleScopes")
+      .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+      .first();
+    return entry?.scopes ?? null;
+  },
+});
+
+export const setUserAuth = mutation({
+  args: {
+    sessionId: v.id("sessions"),
+    email: v.string(),
+    name: v.string(),
+    picture: v.string(),
+    passportAuthorizationId: v.string(),
+    scopes: v.array(v.string()),
+  },
+  handler: async (ctx, { sessionId, email, name, picture, passportAuthorizationId, scopes }) => {
+    const existing = await ctx.db
+      .query("userAuth")
+      .withIndex("by_session_email", (q) =>
+        q.eq("sessionId", sessionId).eq("email", email),
+      )
+      .first();
+
+    const now = Date.now();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        name,
+        picture,
+        passportAuthorizationId,
+        scopes,
+        status: "active",
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.insert("userAuth", {
+        sessionId,
+        email,
+        name,
+        picture,
+        passportAuthorizationId,
+        scopes,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  },
+});
+
+export const getUserAuth = query({
+  args: {
+    sessionId: v.id("sessions"),
+    email: v.string(),
+  },
+  handler: async (ctx, { sessionId, email }) => {
+    return await ctx.db
+      .query("userAuth")
+      .withIndex("by_session_email", (q) =>
+        q.eq("sessionId", sessionId).eq("email", email),
+      )
+      .first();
+  },
+});

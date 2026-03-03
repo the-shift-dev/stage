@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback, useRef } from 'react';
 import { createKV, type StageKV } from '@/lib/kv';
+import type { GoogleClient } from '@/lib/googleClient';
 import ValidatedRunner from './ValidatedRunner';
 import { transform } from 'sucrase';
 
@@ -225,6 +226,7 @@ interface DynamicComponentProps {
     entryPath?: string; // Entry point path
     sessionId: string | null;
     convexContext?: ConvexContext;
+    googleClient?: GoogleClient;
 }
 
 // Compile a module and execute it to get exports
@@ -277,7 +279,7 @@ function toRelativePath(fromPath: string, toPath: string): string {
     return toPath.replace(/\.(tsx?|jsx?)$/, '');
 }
 
-export default function DynamicComponent({ code, files, entryPath, sessionId, convexContext }: DynamicComponentProps) {
+export default function DynamicComponent({ code, files, entryPath, sessionId, convexContext, googleClient }: DynamicComponentProps) {
     const [error, setError] = useState<string | null>(null);
     const kvRef = useRef<StageKV | null>(null);
 
@@ -472,6 +474,12 @@ export default function DynamicComponent({ code, files, entryPath, sessionId, co
             baseScope.import['@stage/convex'] = convexContext;
         }
 
+        // Add Google client for end-user Google API access
+        if (googleClient) {
+            (baseScope as any).google = googleClient;
+            baseScope.import['@stage/google'] = { google: googleClient, default: googleClient };
+        }
+
         // Add session files as importable modules
         if (files && entryPath) {
             const compiledModules: Record<string, any> = {};
@@ -499,7 +507,7 @@ export default function DynamicComponent({ code, files, entryPath, sessionId, co
         }
 
         return baseScope;
-    }, [convexContext, files, entryPath]);
+    }, [convexContext, googleClient, files, entryPath]);
 
     const handleError = useCallback(
         (err: string) => {

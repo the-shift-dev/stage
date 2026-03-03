@@ -50,7 +50,8 @@ export const ALLOWED_IMPORT_PATHS = [
     '@/components/ui/tooltip',
     '@stage/kv',
     '@stage/db',
-    '@stage/convex'
+    '@stage/convex',
+    '@stage/google'
 ] as const;
 
 export const ALLOWED_IMPORTS_SET = new Set(ALLOWED_IMPORT_PATHS as readonly string[]);
