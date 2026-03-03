@@ -9,6 +9,25 @@
 const RUNTIME = (process.env.STAGE_RUNTIME || 'local').trim();
 const RENDER_STATE_PATH = '/app/.stage/render.json';
 const SANDBOX_TIMEOUT_MS = 45 * 60 * 1000; // 45 min (Hobby max)
+const SESSION_TTL = getPositiveEnvMs('STAGE_SESSION_TTL_MS', 1000 * 60 * 60 * 4); // 4 hours
+const CLEANUP_INTERVAL = getPositiveEnvMs('STAGE_CLEANUP_INTERVAL_MS', 1000 * 60 * 15); // every 15 min
+const MAX_LOCAL_SESSIONS = getPositiveEnvInt('STAGE_MAX_LOCAL_SESSIONS', 2000);
+const CACHE_TTL = getPositiveEnvMs('STAGE_VERCEL_SANDBOX_CACHE_TTL_MS', 1000 * 60 * 5); // cache handles for 5 min
+const MAX_VERCEL_SANDBOX_CACHE_ENTRIES = getPositiveEnvInt(
+    'STAGE_MAX_VERCEL_SANDBOX_CACHE_ENTRIES',
+    2000,
+);
+
+function getPositiveEnvInt(name: string, fallback: number): number {
+    const raw = process.env[name]?.trim();
+    const parsed = raw ? Number.parseInt(raw, 10) : NaN;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function getPositiveEnvMs(name: string, fallbackMs: number): number {
+    const value = getPositiveEnvInt(name, fallbackMs);
+    return value > 0 ? value : fallbackMs;
+}
 
 // Unified sandbox interface — both just-bash and @vercel/sandbox conform to this
 interface SandboxLike {
@@ -31,13 +50,24 @@ const DEFAULT_RENDER_STATE: RenderState = {
 // --- Vercel Sandbox adapter with connection cache ---
 
 const globalCache = globalThis as typeof globalThis & {
-    __vercelSandboxCache?: Map<string, { sandbox: SandboxLike; cachedAt: number }>;
+    __vercelSandboxCache?: Map<string, { sandbox: SandboxLike; cachedAt: number; lastAccessedAt: number }>;
 };
 if (!globalCache.__vercelSandboxCache) {
     globalCache.__vercelSandboxCache = new Map();
 }
 const sandboxCache = globalCache.__vercelSandboxCache;
-const CACHE_TTL = 1000 * 60 * 5; // cache handles for 5 min
+
+function pruneByLastAccess<K>(entries: Map<K, { lastAccessedAt: number }>, limit: number): void {
+    if (entries.size <= limit) return;
+
+    const sorted = [...entries.entries()].sort(
+        (a, b) => a[1].lastAccessedAt - b[1].lastAccessedAt,
+    );
+    while (entries.size > limit && sorted.length > 0) {
+        const [key] = sorted.shift()!;
+        entries.delete(key);
+    }
+}
 
 async function importVercelSandbox() {
     return await import('@vercel/sandbox');
@@ -54,23 +84,34 @@ async function createVercelSandbox(): Promise<{
     // Render state is written lazily on first triggerRender call.
     // getRenderState handles the missing file gracefully.
 
+    const now = Date.now();
     const wrapped = wrapVercelSandbox(raw);
-    sandboxCache.set(id, { sandbox: wrapped, cachedAt: Date.now() });
+    sandboxCache.set(id, { sandbox: wrapped, cachedAt: now, lastAccessedAt: now });
+    pruneVercelSandboxCache(now);
     return { id, sandbox: wrapped };
 }
 
 async function getVercelSandbox(sandboxId: string): Promise<SandboxLike> {
+    const now = Date.now();
+    pruneVercelSandboxCache(now);
+
     // Return cached handle if fresh
     const cached = sandboxCache.get(sandboxId);
-    if (cached && Date.now() - cached.cachedAt < CACHE_TTL) {
+    if (cached && now - cached.cachedAt < CACHE_TTL) {
+        cached.lastAccessedAt = now;
         return cached.sandbox;
+    }
+
+    if (cached) {
+        sandboxCache.delete(sandboxId);
     }
 
     // Reconnect
     const { Sandbox } = await importVercelSandbox();
     const raw = await Sandbox.get({ sandboxId });
     const wrapped = wrapVercelSandbox(raw);
-    sandboxCache.set(sandboxId, { sandbox: wrapped, cachedAt: Date.now() });
+    sandboxCache.set(sandboxId, { sandbox: wrapped, cachedAt: now, lastAccessedAt: now });
+    pruneVercelSandboxCache(now);
     return wrapped;
 }
 
@@ -127,20 +168,33 @@ if (!globalStore.__stageSessions) {
 }
 const localSessions = globalStore.__stageSessions;
 
-const SESSION_TTL = 1000 * 60 * 60 * 4; // 4 hours
-const CLEANUP_INTERVAL = 1000 * 60 * 15; // every 15 min
-
 if (!globalStore.__stageCleanup) {
     globalStore.__stageCleanup = true;
     setInterval(() => {
         const now = Date.now();
-        for (const [id, session] of localSessions) {
-            if (now - session.lastAccessedAt > SESSION_TTL) {
-                session.sandbox.stop().catch(() => {});
-                localSessions.delete(id);
-            }
-        }
+        pruneLocalSessions(now);
+        pruneVercelSandboxCache(now);
     }, CLEANUP_INTERVAL);
+}
+
+function pruneLocalSessions(now: number): void {
+    for (const [id, session] of localSessions) {
+        if (now - session.lastAccessedAt > SESSION_TTL) {
+            session.sandbox.stop().catch(() => {});
+            localSessions.delete(id);
+        }
+    }
+
+    pruneByLastAccess(localSessions, MAX_LOCAL_SESSIONS);
+}
+
+function pruneVercelSandboxCache(now: number): void {
+    for (const [sandboxId, entry] of sandboxCache) {
+        if (now - entry.cachedAt > CACHE_TTL) {
+            sandboxCache.delete(sandboxId);
+        }
+    }
+    pruneByLastAccess(sandboxCache, MAX_VERCEL_SANDBOX_CACHE_ENTRIES);
 }
 
 async function createLocalSandbox(): Promise<SandboxLike> {
@@ -183,7 +237,9 @@ async function getLocalSession(sessionId: string): Promise<LocalSession> {
             lastAccessedAt: Date.now()
         };
         localSessions.set(sessionId, session);
+        pruneLocalSessions(Date.now());
     }
+
     session.lastAccessedAt = Date.now();
     return session;
 }
