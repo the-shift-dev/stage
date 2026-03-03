@@ -1,22 +1,85 @@
 'use client';
 
 import { validateUserCode } from '@/lib/codeValidator';
-import { useEffect } from 'react';
-import { useRunner } from 'react-runner';
+import { createElement, useEffect, useMemo, useRef, useState } from 'react';
+import * as ReactExports from 'react';
+import { transform } from 'sucrase';
 
+/**
+ * Compiles user TSX code and renders it as a live React component.
+ * Replaces react-runner's useRunner which is broken with React 19.
+ */
 const ValidatedRunner = ({ code, scope, onErrorAction }: Props) => {
-    // Use useRunner hook to get error handling
-    const { element, error: runtimeError } = useRunner({ code, scope });
-    // Validate user code for security
     const validationResult = validateUserCode(code);
+    const prevCodeRef = useRef<string>('');
+    const componentRef = useRef<React.ComponentType<any> | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [, forceUpdate] = useState(0);
 
-    useEffect(() => {
-        if (runtimeError) {
-            onErrorAction(runtimeError);
+    // Compile user code into a React component
+    const Component = useMemo(() => {
+        if (!validationResult.isValid) return null;
+
+        try {
+            // Transform TypeScript, JSX, and imports to CommonJS
+            const compiled = transform(code, {
+                transforms: ['typescript', 'jsx', 'imports'],
+                jsxRuntime: 'classic',
+                jsxPragma: 'React.createElement',
+                jsxFragmentPragma: 'React.Fragment',
+            }).code;
+
+            // Create module environment
+            const exports: Record<string, any> = {};
+            const moduleObj = { exports };
+
+            // Build require function from scope
+            const requireFn = (name: string) => {
+                if (scope.import && scope.import[name]) return scope.import[name];
+                throw new Error(`Module not found: ${name}`);
+            };
+
+            // Execute the compiled code
+            const fn = new Function('exports', 'module', 'require', 'React', compiled);
+            fn(exports, moduleObj, requireFn, ReactExports);
+
+            // Get the default export
+            const result = moduleObj.exports && Object.keys(moduleObj.exports).length > 0
+                ? moduleObj.exports
+                : exports;
+
+            const UserComponent = result.default || result;
+
+            if (typeof UserComponent === 'function') {
+                // Return the component function directly — React will call it
+                // during rendering, properly setting up hooks and fibers
+                setError(null);
+                return UserComponent;
+            }
+
+            // If it's already a React element, wrap it in a component
+            if (UserComponent && typeof UserComponent === 'object' && UserComponent.$$typeof) {
+                setError(null);
+                return () => UserComponent;
+            }
+
+            setError('Entry point must default-export a React component');
+            return null;
+        } catch (e: any) {
+            const msg = e?.message || String(e);
+            setError(msg);
+            return null;
         }
-    }, [runtimeError, onErrorAction]);
+    }, [code, scope, validationResult.isValid]);
 
-    // Handle validation errors in useEffect to avoid setState during render
+    // Report errors
+    useEffect(() => {
+        if (error) {
+            onErrorAction(error);
+        }
+    }, [error, onErrorAction]);
+
+    // Handle validation errors
     useEffect(() => {
         if (!validationResult.isValid) {
             let violationsBuffer = validationResult.violations.join(', ');
@@ -27,12 +90,13 @@ const ValidatedRunner = ({ code, scope, onErrorAction }: Props) => {
         }
     }, [validationResult.isValid, validationResult.violations, onErrorAction]);
 
-    // Don't render anything if validation fails
-    if (!validationResult.isValid) {
+    if (!validationResult.isValid || !Component) {
         return null;
     }
 
-    return element;
+    // Render the user component directly — this creates it as a proper
+    // React component in the tree with full hook/state support
+    return createElement(Component);
 };
 
 interface Props {
