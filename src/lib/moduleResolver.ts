@@ -1,6 +1,6 @@
 import { transform } from 'sucrase';
 
-const EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx'];
+const EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.css'];
 
 function normalizePosix(input: string): string {
     const absolute = input.startsWith('/');
@@ -88,10 +88,25 @@ export function createVirtualModuleSystem({
     files,
     externals,
     react,
+    onCssImport,
+    runtimeGlobals,
 }: {
     files: Record<string, string>;
     externals: Record<string, any>;
     react: any;
+    onCssImport?: (args: {
+        filePath: string;
+        cssContent: string;
+        files: Record<string, string>;
+    }) => Record<string, string> | void;
+    runtimeGlobals: {
+        window?: any;
+        document?: any;
+        globalThis: any;
+        navigator?: any;
+        fetch?: any;
+        XMLHttpRequest?: any;
+    };
 }): VirtualModuleSystem {
     const normalizedFiles = Object.fromEntries(
         Object.entries(files).map(([filePath, content]) => [normalizeFilePath(filePath), content]),
@@ -127,6 +142,21 @@ export function createVirtualModuleSystem({
             return moduleCache.get(normalizedPath);
         }
 
+        if (normalizedPath.endsWith('.css')) {
+            const cssSource = normalizedFiles[normalizedPath];
+            if (cssSource === undefined) {
+                throw new Error(`Module source not found: ${normalizedPath}`);
+            }
+            const cssModule =
+                onCssImport?.({
+                    filePath: normalizedPath,
+                    cssContent: cssSource,
+                    files: normalizedFiles,
+                }) || {};
+            moduleCache.set(normalizedPath, cssModule);
+            return cssModule;
+        }
+
         const exports: Record<string, any> = {};
         const moduleObj: { exports: any } = { exports };
 
@@ -135,8 +165,31 @@ export function createVirtualModuleSystem({
 
         const requireForFile = (specifier: string) => requireFrom(normalizedPath, specifier);
         const compiled = compile(normalizedPath);
-        const fn = new Function('exports', 'module', 'require', 'React', compiled);
-        fn(exports, moduleObj, requireForFile, react);
+        const fn = new Function(
+            'exports',
+            'module',
+            'require',
+            'React',
+            'window',
+            'document',
+            'globalThis',
+            'navigator',
+            'fetch',
+            'XMLHttpRequest',
+            compiled,
+        );
+        fn(
+            exports,
+            moduleObj,
+            requireForFile,
+            react,
+            runtimeGlobals.window,
+            runtimeGlobals.document,
+            runtimeGlobals.globalThis,
+            runtimeGlobals.navigator,
+            runtimeGlobals.fetch,
+            runtimeGlobals.XMLHttpRequest,
+        );
 
         const finalExports = moduleObj.exports;
         moduleCache.set(normalizedPath, finalExports);

@@ -1,10 +1,12 @@
 'use client';
 
-import { useMemo, useState, useCallback, useRef } from 'react';
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { createKV, type StageKV } from '@/lib/kv';
 import type { GoogleClient } from '@/lib/googleClient';
 import ValidatedRunner from './ValidatedRunner';
 import { createVirtualModuleSystem } from '@/lib/moduleResolver';
+import { processCssImport } from '@/lib/cssProcessor';
 
 // Import all libraries that should be available in execution scope
 import _ from 'lodash';
@@ -233,11 +235,54 @@ interface DynamicComponentProps {
 export default function DynamicComponent({ code, files, entryPath, sessionId, convexContext, googleClient }: DynamicComponentProps) {
     const [error, setError] = useState<string | null>(null);
     const kvRef = useRef<StageKV | null>(null);
+    const cssStyleNodesRef = useRef<Map<string, HTMLStyleElement>>(new Map());
+    const iframeRef = useRef<HTMLIFrameElement | null>(null);
+    const [, setFrameTick] = useState(0);
 
     const scopeId = sessionId || 'default';
     if (!kvRef.current) {
         kvRef.current = createKV(scopeId);
     }
+
+    const frameDocument = iframeRef.current?.contentDocument ?? null;
+    const frameWindow = iframeRef.current?.contentWindow ?? null;
+
+    const applyCssImport = ({
+        filePath,
+        files: allFiles,
+    }: {
+        filePath: string;
+        cssContent: string;
+        files: Record<string, string>;
+    }): Record<string, string> => {
+        const processed = processCssImport({ filePath, files: allFiles });
+
+        const targetDocument = frameDocument ?? (typeof document !== 'undefined' ? document : null);
+        if (!targetDocument) {
+            return processed.exports;
+        }
+
+        const existing = cssStyleNodesRef.current.get(filePath);
+        if (existing) {
+            existing.textContent = processed.css;
+            return processed.exports;
+        }
+
+        const style = targetDocument.createElement('style');
+        style.setAttribute('data-stage-css', filePath);
+        style.textContent = processed.css;
+        targetDocument.head.appendChild(style);
+        cssStyleNodesRef.current.set(filePath, style);
+
+        return processed.exports;
+    };
+
+    const resetCssImports = () => {
+        for (const styleNode of cssStyleNodesRef.current.values()) {
+            styleNode.remove();
+        }
+        cssStyleNodesRef.current.clear();
+    };
 
     const scope = useMemo(() => {
         const baseScope = {
@@ -442,13 +487,37 @@ export default function DynamicComponent({ code, files, entryPath, sessionId, co
                 files: moduleFiles,
                 externals: baseScope.import,
                 react: ReactExports,
+                onCssImport: applyCssImport,
+                runtimeGlobals: {
+                    window: frameWindow,
+                    document: frameDocument,
+                    globalThis: frameWindow,
+                    navigator: frameWindow?.navigator,
+                    fetch: frameWindow?.fetch?.bind(frameWindow),
+                    XMLHttpRequest: (frameWindow as any)?.XMLHttpRequest,
+                },
             });
 
             (baseScope as any).__stageRequire = moduleSystem.requireFor(entryPath);
+            (baseScope as any).__stageCssReset = resetCssImports;
+            (baseScope as any).__stageRuntimeGlobals = {
+                window: frameWindow,
+                document: frameDocument,
+                globalThis: frameWindow,
+                navigator: frameWindow?.navigator,
+                fetch: frameWindow?.fetch?.bind(frameWindow),
+                XMLHttpRequest: (frameWindow as any)?.XMLHttpRequest,
+            };
         }
 
         return baseScope;
-    }, [convexContext, googleClient, files, entryPath, code]);
+    }, [convexContext, googleClient, files, entryPath, code, frameWindow, frameDocument]);
+
+    useEffect(() => {
+        return () => {
+            resetCssImports();
+        };
+    }, []);
 
     const handleError = useCallback(
         (err: string) => {
@@ -467,22 +536,38 @@ export default function DynamicComponent({ code, files, entryPath, sessionId, co
         return null;
     }
 
-    if (error) {
-        return (
-            <div
-                style={{
-                    padding: 24,
-                    fontFamily: 'ui-monospace, monospace',
-                    fontSize: 13,
-                    color: '#ef4444',
-                    background: '#0a0a0f',
-                    minHeight: '100vh'
-                }}
-            >
-                <pre style={{ whiteSpace: 'pre-wrap' }}>{error}</pre>
-            </div>
-        );
-    }
+    const frameRoot = frameDocument?.getElementById('__stage-root') || frameDocument?.body || null;
 
-    return <ValidatedRunner code={code} scope={scope} onErrorAction={handleError} />;
+    return (
+        <div style={{ width: '100%', height: '100%', minHeight: '100vh', position: 'relative' }}>
+            <iframe
+                ref={iframeRef}
+                data-stage-app="true"
+                title="Stage App"
+                onLoad={() => setFrameTick((v) => v + 1)}
+                style={{ width: '100%', height: '100%', border: 'none', background: 'transparent' }}
+                srcDoc="<!doctype html><html><head><meta charset='utf-8'/><style>html,body,#__stage-root{margin:0;padding:0;width:100%;height:100%;background:transparent;}</style></head><body><div id='__stage-root'></div></body></html>"
+            />
+
+            {frameRoot && frameWindow && !error &&
+                createPortal(<ValidatedRunner code={code} scope={scope} onErrorAction={handleError} />, frameRoot)}
+
+            {error && (
+                <div
+                    style={{
+                        position: 'absolute',
+                        inset: 0,
+                        padding: 24,
+                        fontFamily: 'ui-monospace, monospace',
+                        fontSize: 13,
+                        color: '#ef4444',
+                        background: '#0a0a0f',
+                        overflow: 'auto'
+                    }}
+                >
+                    <pre style={{ whiteSpace: 'pre-wrap' }}>{error}</pre>
+                </div>
+            )}
+        </div>
+    );
 }

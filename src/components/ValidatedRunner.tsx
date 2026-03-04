@@ -21,6 +21,11 @@ const ValidatedRunner = ({ code, scope, onErrorAction }: Props) => {
         if (!validationResult.isValid) return null;
 
         try {
+            const cssReset = (scope as any).__stageCssReset;
+            if (typeof cssReset === 'function') {
+                cssReset();
+            }
+
             // Transform TypeScript, JSX, and imports to CommonJS
             const compiled = transform(code, {
                 transforms: ['typescript', 'jsx', 'imports'],
@@ -43,9 +48,38 @@ const ValidatedRunner = ({ code, scope, onErrorAction }: Props) => {
                 throw new Error(`Module not found: ${name}`);
             };
 
+            const runtimeGlobals = (scope as any).__stageRuntimeGlobals;
+            if (!runtimeGlobals?.globalThis) {
+                throw new Error('Stage runtime globals are not initialized');
+            }
+
             // Execute the compiled code
-            const fn = new Function('exports', 'module', 'require', 'React', compiled);
-            fn(exports, moduleObj, requireFn, ReactExports);
+            const fn = new Function(
+                'exports',
+                'module',
+                'require',
+                'React',
+                'window',
+                'document',
+                'globalThis',
+                'navigator',
+                'fetch',
+                'XMLHttpRequest',
+                compiled,
+            );
+
+            fn(
+                exports,
+                moduleObj,
+                requireFn,
+                ReactExports,
+                runtimeGlobals.window,
+                runtimeGlobals.document,
+                runtimeGlobals.globalThis,
+                runtimeGlobals.navigator,
+                runtimeGlobals.fetch,
+                runtimeGlobals.XMLHttpRequest,
+            );
 
             // Get the default export
             const result = moduleObj.exports && Object.keys(moduleObj.exports).length > 0

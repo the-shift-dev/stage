@@ -29,7 +29,8 @@ function writeRemote(session: string, remotePath: string, content: string): void
 async function renderAndAssert(page: any, session: string, expectedValue: string) {
   run(`stage render --session ${session}`);
   await page.goto(`${stageUrl}/s/${session}`, { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('#value')).toHaveText(expectedValue, { timeout: 10_000 });
+  const app = page.frameLocator('iframe[data-stage-app]');
+  await expect(app.locator('#value')).toHaveText(expectedValue, { timeout: 10_000 });
   await expect(page.locator('pre')).toHaveCount(0);
 }
 
@@ -99,5 +100,81 @@ test.describe('@integration nested import resolution', () => {
     );
 
     await renderAndAssert(page, session, 'abs');
+  });
+
+  test('applies imported css from relative file', async ({ page }) => {
+    const session = newSession();
+
+    writeRemote(session, '/app/styles/palette.css', `#value { color: rgb(255, 0, 0); font-weight: 700; }`);
+    writeRemote(
+      session,
+      '/app/App.tsx',
+      `import React from 'react'; import './styles/palette.css'; export default function App(){ return <div id=\"value\">css-ok</div>; }`,
+    );
+
+    run(`stage render --session ${session}`);
+    await page.goto(`${stageUrl}/s/${session}`, { waitUntil: 'domcontentloaded' });
+    const app = page.frameLocator('iframe[data-stage-app]');
+    await expect(app.locator('#value')).toHaveText('css-ok', { timeout: 10_000 });
+
+    const style = await app.locator('#value').evaluate((el) => {
+      const cs = window.getComputedStyle(el);
+      return { color: cs.color, fontWeight: cs.fontWeight };
+    });
+
+    expect(style).toEqual({ color: 'rgb(255, 0, 0)', fontWeight: '700' });
+    await expect(page.locator('pre')).toHaveCount(0);
+  });
+
+  test('supports css modules class mapping', async ({ page }) => {
+    const session = newSession();
+
+    writeRemote(session, '/app/styles/palette.module.css', `.title { color: rgb(0, 128, 0); }`);
+    writeRemote(
+      session,
+      '/app/App.tsx',
+      `import React from 'react'; import styles from './styles/palette.module.css'; export default function App(){ return <div id=\"value\" className={styles.title}>css-module</div>; }`,
+    );
+
+    run(`stage render --session ${session}`);
+    await page.goto(`${stageUrl}/s/${session}`, { waitUntil: 'domcontentloaded' });
+    const app = page.frameLocator('iframe[data-stage-app]');
+    await expect(app.locator('#value')).toHaveText('css-module', { timeout: 10_000 });
+
+    const color = await app.locator('#value').evaluate((el) => window.getComputedStyle(el).color);
+
+    expect(color).toBe('rgb(0, 128, 0)');
+    await expect(page.locator('pre')).toHaveCount(0);
+  });
+
+  test('supports @import and url() asset handling in css', async ({ page }) => {
+    const session = newSession();
+
+    writeRemote(session, '/app/styles/base.css', `#value { color: rgb(0, 0, 255); background-image: url('./icon.svg'); }`);
+    writeRemote(session, '/app/styles/main.css', `@import './base.css';`);
+    writeRemote(
+      session,
+      '/app/styles/icon.svg',
+      `<svg xmlns='http://www.w3.org/2000/svg' width='4' height='4'><rect width='4' height='4' fill='red'/></svg>`,
+    );
+    writeRemote(
+      session,
+      '/app/App.tsx',
+      `import React from 'react'; import './styles/main.css'; export default function App(){ return <div id=\"value\">css-import-url</div>; }`,
+    );
+
+    run(`stage render --session ${session}`);
+    await page.goto(`${stageUrl}/s/${session}`, { waitUntil: 'domcontentloaded' });
+    const app = page.frameLocator('iframe[data-stage-app]');
+    await expect(app.locator('#value')).toHaveText('css-import-url', { timeout: 10_000 });
+
+    const style = await app.locator('#value').evaluate((el) => {
+      const cs = window.getComputedStyle(el);
+      return { color: cs.color, bg: cs.backgroundImage };
+    });
+
+    expect(style?.color).toBe('rgb(0, 0, 255)');
+    expect(style?.bg).toContain('data:image/svg+xml;base64,');
+    await expect(page.locator('pre')).toHaveCount(0);
   });
 });

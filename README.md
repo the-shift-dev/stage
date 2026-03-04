@@ -84,6 +84,24 @@ stage ls /app --session <id>
 
 ---
 
+## CSS support
+
+Stage supports CSS directly from session files:
+
+- Global CSS imports:
+  - `import './styles.css'`
+- CSS Modules:
+  - `import styles from './styles.module.css'`
+- Recursive CSS `@import` (including relative + extensionless paths)
+- `url(...)` for local assets (inlined as data URLs)
+- PostCSS transform with `autoprefixer`
+
+Notes:
+- CSS is processed and injected at runtime from your Stage session files.
+- External `@import`/`url(...)` values are preserved.
+
+---
+
 ## Architecture (high level)
 
 1. CLI writes files + render mutations to Convex (`convex/stage.ts`)

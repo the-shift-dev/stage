@@ -1,7 +1,19 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createVirtualModuleSystem } from '../moduleResolver';
 
 const fakeReact = { createElement: () => null, Fragment: Symbol('Fragment') };
+const runtimeGlobals = {
+  globalThis,
+  window: undefined,
+  document: undefined,
+  navigator: undefined,
+  fetch: undefined,
+  XMLHttpRequest: undefined,
+};
+
+function makeMS(args: Omit<Parameters<typeof createVirtualModuleSystem>[0], 'runtimeGlobals'>) {
+  return createVirtualModuleSystem({ ...args, runtimeGlobals });
+}
 
 describe('moduleResolver', () => {
   beforeEach(() => {
@@ -10,7 +22,7 @@ describe('moduleResolver', () => {
   });
 
   it('resolves same-directory relative import with extension', () => {
-    const ms = createVirtualModuleSystem({
+    const ms = makeMS({
       files: {
         '/app/App.tsx': `import { value } from './dep.ts'; export default value;`,
         '/app/dep.ts': `export const value = 'ok';`,
@@ -24,7 +36,7 @@ describe('moduleResolver', () => {
   });
 
   it('resolves nested ../ imports from subdirectories', () => {
-    const ms = createVirtualModuleSystem({
+    const ms = makeMS({
       files: {
         '/app/App.tsx': `import useAuth from './hooks/useAuth.ts'; export default useAuth();`,
         '/app/hooks/useAuth.ts': `import { ping } from '../lib/api.ts'; export default function useAuth(){ return ping; }`,
@@ -39,7 +51,7 @@ describe('moduleResolver', () => {
   });
 
   it('resolves extensionless imports', () => {
-    const ms = createVirtualModuleSystem({
+    const ms = makeMS({
       files: {
         '/app/App.tsx': `import { answer } from './utils/math'; export default answer;`,
         '/app/utils/math.ts': `export const answer = 42;`,
@@ -53,7 +65,7 @@ describe('moduleResolver', () => {
   });
 
   it('resolves directory index imports', () => {
-    const ms = createVirtualModuleSystem({
+    const ms = makeMS({
       files: {
         '/app/App.tsx': `import value from './pkg'; export default value;`,
         '/app/pkg/index.ts': `export default 'index-ok';`,
@@ -67,7 +79,7 @@ describe('moduleResolver', () => {
   });
 
   it('supports absolute /app imports', () => {
-    const ms = createVirtualModuleSystem({
+    const ms = makeMS({
       files: {
         '/app/App.tsx': `import { n } from '/app/lib/numbers.ts'; export default n;`,
         '/app/lib/numbers.ts': `export const n = 7;`,
@@ -81,7 +93,7 @@ describe('moduleResolver', () => {
   });
 
   it('delegates bare imports to externals', () => {
-    const ms = createVirtualModuleSystem({
+    const ms = makeMS({
       files: {
         '/app/App.tsx': `import ext from 'my-ext'; export default ext.token;`,
       },
@@ -96,7 +108,7 @@ describe('moduleResolver', () => {
   });
 
   it('caches module execution', () => {
-    const ms = createVirtualModuleSystem({
+    const ms = makeMS({
       files: {
         '/app/App.tsx': `
           import { calls } from './counter.ts';
@@ -119,7 +131,7 @@ describe('moduleResolver', () => {
   });
 
   it('supports transitive dependency chains', () => {
-    const ms = createVirtualModuleSystem({
+    const ms = makeMS({
       files: {
         '/app/App.tsx': `import { a } from './a.ts'; export default a;`,
         '/app/a.ts': `import { b } from './b.ts'; export const a = 'A' + b;`,
@@ -135,7 +147,7 @@ describe('moduleResolver', () => {
   });
 
   it('throws clear error on missing module', () => {
-    const ms = createVirtualModuleSystem({
+    const ms = makeMS({
       files: {
         '/app/App.tsx': `import missing from './missing'; export default missing;`,
       },
@@ -149,7 +161,7 @@ describe('moduleResolver', () => {
   });
 
   it('resolveImport returns normalized absolute path', () => {
-    const ms = createVirtualModuleSystem({
+    const ms = makeMS({
       files: {
         '/app/App.tsx': 'export default 1;',
         '/app/hooks/useAuth.ts': 'export default 1;',
@@ -162,7 +174,7 @@ describe('moduleResolver', () => {
   });
 
   it('resolveImport returns null for bare imports', () => {
-    const ms = createVirtualModuleSystem({
+    const ms = makeMS({
       files: { '/app/App.tsx': 'export default 1;' },
       externals: {},
       react: fakeReact,
@@ -172,7 +184,7 @@ describe('moduleResolver', () => {
   });
 
   it('throws when resolved path exists syntactically but has no source entry', () => {
-    const ms = createVirtualModuleSystem({
+    const ms = makeMS({
       files: { '/app/App.tsx': 'export default 1;' },
       externals: {},
       react: fakeReact,
@@ -182,7 +194,7 @@ describe('moduleResolver', () => {
   });
 
   it('requireFor binds caller path', () => {
-    const ms = createVirtualModuleSystem({
+    const ms = makeMS({
       files: {
         '/app/hooks/useAuth.ts': `import { ping } from '../lib/api.ts'; export default ping;`,
         '/app/lib/api.ts': `export const ping = 'bound';`,
@@ -197,7 +209,7 @@ describe('moduleResolver', () => {
   });
 
   it('returns cached module on repeated top-level requires', () => {
-    const ms = createVirtualModuleSystem({
+    const ms = makeMS({
       files: {
         '/app/App.tsx': `
           globalThis.__moduleRepeat = (globalThis.__moduleRepeat || 0) + 1;
@@ -212,5 +224,66 @@ describe('moduleResolver', () => {
     const second = ms.requireFrom('/app/bootstrap.ts', '/app/App.tsx');
     expect(first.default).toBe(1);
     expect(second.default).toBe(1);
+  });
+
+  it('resolves css imports and triggers onCssImport callback once', () => {
+    const onCssImport = vi.fn();
+    const ms = makeMS({
+      files: {
+        '/app/styles/palette.css': `.title { color: red; }`,
+        '/app/App.tsx': `import './styles/palette.css'; export default 1;`,
+      },
+      externals: {},
+      react: fakeReact,
+      onCssImport,
+    });
+
+    const mod = ms.requireFrom('/app/bootstrap.ts', '/app/App.tsx');
+    expect(mod.default).toBe(1);
+    expect(onCssImport).toHaveBeenCalledTimes(1);
+    expect(onCssImport).toHaveBeenCalledWith({
+      filePath: '/app/styles/palette.css',
+      cssContent: `.title { color: red; }`,
+      files: expect.objectContaining({ '/app/styles/palette.css': `.title { color: red; }` }),
+    });
+
+    // cached module path should not trigger second callback
+    ms.requireFrom('/app/bootstrap.ts', '/app/App.tsx');
+    expect(onCssImport).toHaveBeenCalledTimes(1);
+  });
+
+  it('supports extensionless css imports', () => {
+    const onCssImport = vi.fn();
+    const ms = makeMS({
+      files: {
+        '/app/styles/theme.css': `#value { color: rgb(255, 0, 0); }`,
+        '/app/App.tsx': `import './styles/theme'; export default 1;`,
+      },
+      externals: {},
+      react: fakeReact,
+      onCssImport,
+    });
+
+    ms.requireFrom('/app/bootstrap.ts', '/app/App.tsx');
+    expect(onCssImport).toHaveBeenCalledWith({
+      filePath: '/app/styles/theme.css',
+      cssContent: `#value { color: rgb(255, 0, 0); }`,
+      files: expect.objectContaining({ '/app/styles/theme.css': `#value { color: rgb(255, 0, 0); }` }),
+    });
+  });
+
+  it('uses css module exports returned by css import callback', () => {
+    const ms = makeMS({
+      files: {
+        '/app/styles/theme.module.css': `.title { color: red; }`,
+        '/app/App.tsx': `import styles from './styles/theme.module.css'; export default styles.title;`,
+      },
+      externals: {},
+      react: fakeReact,
+      onCssImport: () => ({ title: 'title_hash' }),
+    });
+
+    const mod = ms.requireFrom('/app/bootstrap.ts', '/app/App.tsx');
+    expect(mod.default).toBe('title_hash');
   });
 });
