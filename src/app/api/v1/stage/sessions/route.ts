@@ -4,9 +4,11 @@ import { convexMutation } from '@/lib/convexHttp';
 export async function POST() {
   try {
     const id = await convexMutation<string>('createSession', {});
-    return NextResponse.json({ id, success: true, data: { id } });
+    return NextResponse.json({ success: true, data: { id } });
   } catch (e: any) {
-    const error = e?.message || 'Failed to create session';
-    return NextResponse.json({ error, success: false }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: e?.message || 'Failed to create session' },
+      { status: 500 },
+    );
   }
 }
