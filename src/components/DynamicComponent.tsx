@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback, useRef } from 'react';
 import { createKV, type StageKV } from '@/lib/kv';
 import type { GoogleClient } from '@/lib/googleClient';
 import ValidatedRunner from './ValidatedRunner';
-import { transform } from 'sucrase';
+import { createVirtualModuleSystem } from '@/lib/moduleResolver';
 
 // Import all libraries that should be available in execution scope
 import _ from 'lodash';
@@ -229,55 +229,6 @@ interface DynamicComponentProps {
     googleClient?: GoogleClient;
 }
 
-// Compile a module and execute it to get exports
-function compileModule(code: string, scope: Record<string, any>): Record<string, any> {
-    try {
-        // Transform TypeScript, JSX, AND imports to CommonJS
-        const compiled = transform(code, {
-            transforms: ['typescript', 'jsx', 'imports'],
-            jsxRuntime: 'classic',
-            jsxPragma: 'React.createElement',
-            jsxFragmentPragma: 'React.Fragment'
-        }).code;
-
-        // Create a module-like environment
-        const exports: Record<string, any> = {};
-        const moduleObj = { exports };
-
-        // Build require function for this module
-        const require = (name: string) => {
-            if (scope.import && scope.import[name]) return scope.import[name];
-            throw new Error(`Module not found: ${name}`);
-        };
-
-        // Execute the compiled code
-        const fn = new Function('exports', 'module', 'require', 'React', compiled);
-        fn(exports, moduleObj, require, ReactExports);
-
-        // Return all exports (moduleObj.exports or exports object)
-        const result = moduleObj.exports && Object.keys(moduleObj.exports).length > 0 ? moduleObj.exports : exports;
-
-        return result;
-    } catch (e) {
-        console.error('Failed to compile module:', e);
-        return {};
-    }
-}
-
-// Convert absolute path to relative import path
-function toRelativePath(fromPath: string, toPath: string): string {
-    // Simple case: same directory
-    const fromDir = fromPath.substring(0, fromPath.lastIndexOf('/'));
-    const toDir = toPath.substring(0, toPath.lastIndexOf('/'));
-    const toFile = toPath.substring(toPath.lastIndexOf('/') + 1).replace(/\.(tsx?|jsx?)$/, '');
-
-    if (fromDir === toDir) {
-        return './' + toFile;
-    }
-
-    // For now, just use the path without extension
-    return toPath.replace(/\.(tsx?|jsx?)$/, '');
-}
 
 export default function DynamicComponent({ code, files, entryPath, sessionId, convexContext, googleClient }: DynamicComponentProps) {
     const [error, setError] = useState<string | null>(null);
@@ -480,34 +431,24 @@ export default function DynamicComponent({ code, files, entryPath, sessionId, co
             baseScope.import['@stage/google'] = { google: googleClient, default: googleClient };
         }
 
-        // Add session files as importable modules
-        if (files && entryPath) {
-            const compiledModules: Record<string, any> = {};
-
-            for (const [path, content] of Object.entries(files)) {
-                if (path === entryPath) continue; // Don't compile entry point here
-
-                // Compile the module
-                const compiled = compileModule(content, baseScope);
-
-                // Add under multiple import paths:
-                // 1. Full path: /app/Button.tsx
-                // 2. Without extension: /app/Button
-                // 3. Relative from entry: ./Button
-                const pathWithoutExt = path.replace(/\.(tsx?|jsx?)$/, '');
-                const fileName = path.substring(path.lastIndexOf('/') + 1).replace(/\.(tsx?|jsx?)$/, '');
-                const relativePath = './' + fileName;
-
-                baseScope.import[path] = compiled;
-                baseScope.import[pathWithoutExt] = compiled;
-                baseScope.import[relativePath] = compiled;
-
-                compiledModules[path] = compiled;
+        // Add virtual module resolver for session files (supports nested relative imports)
+        if (entryPath) {
+            const moduleFiles: Record<string, string> = { ...(files || {}) };
+            if (!moduleFiles[entryPath]) {
+                moduleFiles[entryPath] = code;
             }
+
+            const moduleSystem = createVirtualModuleSystem({
+                files: moduleFiles,
+                externals: baseScope.import,
+                react: ReactExports,
+            });
+
+            (baseScope as any).__stageRequire = moduleSystem.requireFor(entryPath);
         }
 
         return baseScope;
-    }, [convexContext, googleClient, files, entryPath]);
+    }, [convexContext, googleClient, files, entryPath, code]);
 
     const handleError = useCallback(
         (err: string) => {

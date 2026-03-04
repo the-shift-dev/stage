@@ -33,8 +33,12 @@ const ValidatedRunner = ({ code, scope, onErrorAction }: Props) => {
             const exports: Record<string, any> = {};
             const moduleObj = { exports };
 
-            // Build require function from scope
+            // Build require function from scope / virtual module system
             const requireFn = (name: string) => {
+                const scopedRequire = (scope as any).__stageRequire;
+                if (typeof scopedRequire === 'function') {
+                    return scopedRequire(name);
+                }
                 if (scope.import && scope.import[name]) return scope.import[name];
                 throw new Error(`Module not found: ${name}`);
             };

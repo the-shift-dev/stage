@@ -1,0 +1,103 @@
+import { execSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { test, expect } from '@playwright/test';
+
+const stageUrl = process.env.STAGE_URL || 'http://127.0.0.1:3000';
+
+function run(command: string): string {
+  return execSync(command, {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    encoding: 'utf8',
+    env: process.env,
+  }).trim();
+}
+
+function newSession(): string {
+  const output = run('stage new --json');
+  return JSON.parse(output).id;
+}
+
+function writeRemote(session: string, remotePath: string, content: string): void {
+  const dir = mkdtempSync(path.join(tmpdir(), 'stage-it-'));
+  const localPath = path.join(dir, path.basename(remotePath).replace(/\//g, '_') || 'tmp.ts');
+  writeFileSync(localPath, content, 'utf8');
+  run(`stage write ${remotePath} ${localPath} --session ${session}`);
+}
+
+async function renderAndAssert(page: any, session: string, expectedValue: string) {
+  run(`stage render --session ${session}`);
+  await page.goto(`${stageUrl}/s/${session}`, { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#value')).toHaveText(expectedValue, { timeout: 10_000 });
+  await expect(page.locator('pre')).toHaveCount(0);
+}
+
+test.describe('@integration nested import resolution', () => {
+  test.beforeAll(() => {
+    if (!process.env.CONVEX_SELF_HOSTED_URL) {
+      throw new Error('Set CONVEX_SELF_HOSTED_URL for integration tests');
+    }
+    if (!process.env.CONVEX_SELF_HOSTED_ADMIN_KEY) {
+      throw new Error('Set CONVEX_SELF_HOSTED_ADMIN_KEY for integration tests');
+    }
+  });
+
+  test('resolves nested ../ imports from hooks -> lib', async ({ page }) => {
+    const session = newSession();
+
+    writeRemote(session, '/app/lib/api.ts', `export const ping = 'pong';`);
+    writeRemote(
+      session,
+      '/app/hooks/useAuth.ts',
+      `import { ping } from '../lib/api.ts'; export default function useAuth(){ return ping; }`,
+    );
+    writeRemote(
+      session,
+      '/app/App.tsx',
+      `import React from 'react'; import useAuth from './hooks/useAuth.ts'; export default function App(){ return <div id=\"value\">{useAuth()}</div>; }`,
+    );
+
+    await renderAndAssert(page, session, 'pong');
+  });
+
+  test('resolves extensionless transitive imports', async ({ page }) => {
+    const session = newSession();
+
+    writeRemote(session, '/app/lib/math.ts', `export const n = 42;`);
+    writeRemote(session, '/app/hooks/useNum.ts', `import { n } from '../lib/math'; export default () => n;`);
+    writeRemote(
+      session,
+      '/app/App.tsx',
+      `import React from 'react'; import useNum from './hooks/useNum'; export default function App(){ return <div id=\"value\">{String(useNum())}</div>; }`,
+    );
+
+    await renderAndAssert(page, session, '42');
+  });
+
+  test('resolves directory index import', async ({ page }) => {
+    const session = newSession();
+
+    writeRemote(session, '/app/pkg/index.ts', `export default 'index-ok';`);
+    writeRemote(
+      session,
+      '/app/App.tsx',
+      `import React from 'react'; import value from './pkg'; export default function App(){ return <div id=\"value\">{value}</div>; }`,
+    );
+
+    await renderAndAssert(page, session, 'index-ok');
+  });
+
+  test('resolves absolute /app imports', async ({ page }) => {
+    const session = newSession();
+
+    writeRemote(session, '/app/lib/constants.ts', `export const name = 'abs';`);
+    writeRemote(
+      session,
+      '/app/App.tsx',
+      `import React from 'react'; import { name } from '/app/lib/constants.ts'; export default function App(){ return <div id=\"value\">{name}</div>; }`,
+    );
+
+    await renderAndAssert(page, session, 'abs');
+  });
+});

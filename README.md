@@ -1,81 +1,126 @@
 # 🎭 Stage
 
-> A sandboxed React runtime for AI agents. Agent writes code, Stage performs it.
+Sandboxed React runtime for AI agents.
 
-Stage is a Next.js app that runs React components in an isolated virtual filesystem. No build step, no deploy, no hosting. An agent writes files via CLI, Stage renders them live in the browser.
+Stage lets an agent (or human) create a session, write React/TS files into that session, and render the result live at a shareable URL.
 
-## How It Works
+---
 
-1. Agent creates a session → gets a URL (`/s/{session}`)
-2. Agent writes files to the session's virtual FS via `stage-cli`
-3. Stage renders the component live in the browser
-4. Each session is fully isolated (separate just-bash instance + filesystem)
+## What Stage does
 
-## Quick Start
+- Creates isolated app sessions (`/s/:sessionId`)
+- Stores session files + render state in Convex
+- Executes/render user React code in-browser
+- Exposes a curated runtime scope (React, shadcn/ui, Recharts, lodash, PapaParse, Stage APIs)
+- Supports multi-file apps with relative imports
+
+---
+
+## Quick start (local)
+
+### 1) Start Stage
 
 ```bash
-# Start Stage
+npm install
 npm run dev
+```
 
-# In another terminal, install the CLI
-npm install -g stage-cli
+Stage UI: `http://localhost:3000`
 
-# Create a session
+### 2) Configure CLI env
+
+Use either Convex Cloud or self-hosted Convex.
+
+```bash
+# self-hosted example
+export CONVEX_SELF_HOSTED_URL=http://127.0.0.1:3210
+export CONVEX_SELF_HOSTED_ADMIN_KEY=<your-admin-key>
+export STAGE_URL=http://127.0.0.1:3000
+```
+
+### 3) Create and render a session
+
+```bash
 stage new
-# ✓ Session created: abc123
-#   URL: http://localhost:3000/s/abc123
+# => session id + URL
 
-# Write a component and render it
-stage write /app/App.tsx ./App.tsx --session abc123
-stage render --session abc123
-
-# Or push an entire directory
-stage push ./my-app /app --session abc123
+stage write /app/App.tsx ./App.tsx --session <id>
+stage render --session <id>
 ```
 
-Open `http://localhost:3000/s/abc123` to see the result.
+Open: `http://localhost:3000/s/<id>`
 
-## What's Available
+---
 
-Components rendered in Stage have access to:
+## Common CLI flow
 
-- **React** — hooks, JSX, full runtime
-- **[shadcn/ui](https://ui.shadcn.com/)** — Card, Button, Badge, Tabs, Dialog, and more
-- **[Recharts](https://recharts.org/)** — BarChart, LineChart, PieChart, AreaChart
-- **[Lodash](https://lodash.com/)** — utility functions
-- **[PapaParse](https://www.papaparse.com/)** — CSV parsing
-- **KV Store** — localStorage-backed, scoped per artifact
-- **Virtual Bash** — ls, cat, grep, sed, find, pipes via [just-bash](https://github.com/nicholasgasior/just-bash)
+```bash
+# create session
+stage new
 
-## Architecture
+# write files
+stage write /app/App.tsx ./App.tsx --session <id>
+stage push ./my-app /app --session <id>
 
-```
-stage-cli (any agent)
-    │
-    ├── POST /api/stage/sessions     → create session
-    ├── POST /api/stage/files        → write files to virtual FS
-    ├── GET  /api/stage/files        → read files from virtual FS
-    ├── POST /api/stage/exec         → run bash commands
-    └── POST /api/stage/render       → trigger render
-         │
-         ▼
-    Stage Server (Next.js)
-    ├── Session Map (globalThis)
-    │   ├── session-abc → Bash instance + FS + render state
-    │   ├── session-def → Bash instance + FS + render state
-    │   └── ...
-    │
-    └── /s/[session] (browser)
-        └── Polls render API → react-runner → live component
+# render + inspect
+stage render --session <id>
+stage status --session <id>
+stage ls /app --session <id>
 ```
 
-- **Session isolation** — each session gets its own `just-bash` instance with an independent in-memory filesystem
-- **Sessions survive hot reloads** — stored on `globalThis`
-- **Auto-expire** — sessions are cleaned up after 4 hours of inactivity
+---
 
-## CLI
+## Runtime imports available to user code
 
-See [stage-cli](https://github.com/the-shift-dev/stage-cli) for the full CLI documentation.
+- `react`
+- `recharts`
+- `lodash`
+- `papaparse`
+- `lucide-react`
+- many `@/components/ui/*` shadcn components
+- `@stage/kv`
+- `@stage/convex`
+- `@stage/google` (when Google auth is enabled for the session)
+
+---
+
+## Architecture (high level)
+
+1. CLI writes files + render mutations to Convex (`convex/stage.ts`)
+2. Session page (`src/app/s/[session]/page.tsx`) subscribes to Convex state
+3. `DynamicComponent` + `ValidatedRunner` compile and execute user TSX in the browser
+4. Browser updates live as session files/render version change
+
+---
+
+## Development
+
+```bash
+npm run dev
+npm run build
+npm run lint
+npm run ts
+```
+
+---
+
+## Tests
+
+Standard split:
+
+- **Unit tests** (Vitest):
+  ```bash
+  npm run test:unit
+  npm run test:unit -- --coverage
+  ```
+- **Integration tests** (Playwright):
+  ```bash
+  npm run test:integration
+  ```
+
+Integration tests require Convex + Stage env vars (e.g. `CONVEX_SELF_HOSTED_URL`, `CONVEX_SELF_HOSTED_ADMIN_KEY`, `STAGE_URL`).
+
+---
 
 ## License
 
