@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSession } from '@/lib/session-helper';
 import { convexMutation, convexQuery } from '@/lib/convexHttp';
+import { resolveSessionIdForApiRequest } from '@/app/api/v1/stage/resolve-session-id';
 
 export async function POST(req: NextRequest) {
   const sessionId = requireSession(req);
@@ -8,17 +9,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Session required' }, { status: 400 });
   }
 
+  const resolvedSessionId = await resolveSessionIdForApiRequest(sessionId);
+  if (!resolvedSessionId) {
+    return NextResponse.json({ success: false, error: `Session not found: ${sessionId}` }, { status: 404 });
+  }
+
   const body = await req.json().catch(() => ({}));
   const entry = body.entry || '/app/App.tsx';
 
   try {
     const render = await convexMutation<{ entry: string; version: number }>('triggerRender', {
-      sessionId,
+      sessionId: resolvedSessionId,
       entry,
     });
 
     const file = await convexQuery<{ content: string } | null>('readFile', {
-      sessionId,
+      sessionId: resolvedSessionId,
       path: entry,
     });
 
@@ -48,20 +54,25 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Session required' }, { status: 400 });
   }
 
+  const resolvedSessionId = await resolveSessionIdForApiRequest(sessionId);
+  if (!resolvedSessionId) {
+    return NextResponse.json({ success: false, error: `Session not found: ${sessionId}` }, { status: 404 });
+  }
+
   try {
     const state = await convexQuery<{
       entry: string;
       version: number;
       error?: string;
       renderedAt?: number;
-    } | null>('getRenderState', { sessionId });
+    } | null>('getRenderState', { sessionId: resolvedSessionId });
 
     if (!state) {
       return NextResponse.json({ success: false, error: 'No render state yet' }, { status: 404 });
     }
 
     const file = await convexQuery<{ content: string } | null>('readFile', {
-      sessionId,
+      sessionId: resolvedSessionId,
       path: state.entry,
     });
 

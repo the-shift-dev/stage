@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import * as ReactDOMClient from 'react-dom/client';
 import { createKV, type StageKV } from '@/lib/kv';
 import type { GoogleClient } from '@/lib/googleClient';
 import { createPulseClient } from '@/lib/pulseClient';
@@ -296,6 +297,7 @@ export default function DynamicComponent({ code, files, entryPath, sessionId, co
         const baseScope = {
             import: {
                 react: ReactExports,
+                'react-dom/client': ReactDOMClient,
                 'lucide-react': LucideIcons,
                 lodash: _,
                 papaparse: Papa,

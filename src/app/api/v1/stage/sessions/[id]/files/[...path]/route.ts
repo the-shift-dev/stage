@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { convexMutation, convexQuery } from '@/lib/convexHttp';
+import { resolveSessionIdForApiRequest } from '@/app/api/v1/stage/resolve-session-id';
 
 function toStagePath(parts: string[] | undefined): string {
   const safe = (parts || []).filter(Boolean);
@@ -13,13 +14,18 @@ export async function GET(
   const { id, path } = params;
   const filePath = toStagePath(path);
 
+  const resolvedSessionId = await resolveSessionIdForApiRequest(id);
+  if (!resolvedSessionId) {
+    return NextResponse.json({ success: false, error: `Session not found: ${id}` }, { status: 404 });
+  }
+
   if (filePath === '/') {
     return NextResponse.json({ success: false, error: 'File path is required' }, { status: 400 });
   }
 
   try {
     const file = await convexQuery<{ path: string; content: string; version?: number } | null>('readFile', {
-      sessionId: id,
+      sessionId: resolvedSessionId,
       path: filePath,
     });
 
@@ -46,6 +52,11 @@ export async function PUT(
   const { id, path } = params;
   const filePath = toStagePath(path);
 
+  const resolvedSessionId = await resolveSessionIdForApiRequest(id);
+  if (!resolvedSessionId) {
+    return NextResponse.json({ success: false, error: `Session not found: ${id}` }, { status: 404 });
+  }
+
   if (filePath === '/') {
     return NextResponse.json({ success: false, error: 'File path is required' }, { status: 400 });
   }
@@ -60,7 +71,7 @@ export async function PUT(
 
   try {
     const result = await convexMutation<{ path: string; version: number; size: number }>('writeFile', {
-      sessionId: id,
+      sessionId: resolvedSessionId,
       path: filePath,
       content: body.content,
     });

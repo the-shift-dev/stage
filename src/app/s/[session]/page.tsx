@@ -10,6 +10,11 @@ import AuthGate from '@/components/AuthGate';
 import Loader from '@/components/Loader';
 import TailwindProvider from '@/components/TailwindProvider';
 import { createGoogleClient, type GoogleClient, type GoogleUser } from '@/lib/googleClient';
+import {
+    resolveSessionId,
+    isLikelyConvexSessionId,
+    type StageSessionSummary,
+} from '@/lib/session-resolver';
 
 export default function SessionPage() {
     return (
@@ -26,12 +31,63 @@ const SessionContent = () => {
     const [copied, setCopied] = useState(false);
     const [googleAuthUser, setGoogleAuthUser] = useState<GoogleUser | null>(null);
     const [googleAuthChecked, setGoogleAuthChecked] = useState(false);
+    const [resolvedSessionId, setResolvedSessionId] = useState<Id<'sessions'> | null>(null);
+    const [sessionResolutionError, setSessionResolutionError] = useState<string | null>(null);
 
-    // Use session string directly (Convex will validate)
-    const sessionId = session as Id<'sessions'>;
+    useEffect(() => {
+        let cancelled = false;
 
-    // Use skip if no session
-    const queryArgs = session ? { sessionId } : 'skip';
+        if (!session) {
+            setResolvedSessionId(null);
+            setSessionResolutionError('Missing session id');
+            return;
+        }
+
+        if (isLikelyConvexSessionId(session)) {
+            setResolvedSessionId(session as Id<'sessions'>);
+            setSessionResolutionError(null);
+            return;
+        }
+
+        const resolve = async () => {
+            try {
+                const response = await fetch('/api/v1/stage/sessions');
+                const payload = (await response.json()) as {
+                    success: boolean;
+                    data: StageSessionSummary[];
+                    error?: string;
+                };
+
+                if (!response.ok || !payload.success) {
+                    throw new Error(payload.error || 'Failed to resolve session');
+                }
+
+                const resolved = resolveSessionId(session, payload.data);
+                if (!resolved) {
+                    throw new Error(`Session not found: ${session}`);
+                }
+
+                if (!cancelled) {
+                    setResolvedSessionId(resolved as Id<'sessions'>);
+                    setSessionResolutionError(null);
+                }
+            } catch (e: any) {
+                if (!cancelled) {
+                    setSessionResolutionError(e?.message || 'Failed to resolve session');
+                    setResolvedSessionId(null);
+                }
+            }
+        };
+
+        void resolve();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [session]);
+
+    // Use skip if no resolved session id yet
+    const queryArgs = resolvedSessionId ? { sessionId: resolvedSessionId } : 'skip';
 
     // Reactive queries with skip support
     const renderState = useQuery(api.stage.getRenderState, queryArgs);
@@ -48,12 +104,12 @@ const SessionContent = () => {
 
     // Check end-user Google auth status when scopes are required
     useEffect(() => {
-        if (!session || !googleScopes || googleScopes.length === 0) {
+        if (!resolvedSessionId || !googleScopes || googleScopes.length === 0) {
             setGoogleAuthChecked(true);
             return;
         }
 
-        fetch(`/auth/stage/me?session=${encodeURIComponent(session)}`, { credentials: 'include' })
+        fetch(`/auth/stage/me?session=${encodeURIComponent(resolvedSessionId)}`, { credentials: 'include' })
             .then((res) => res.json())
             .then((data) => {
                 if (data.authenticated) {
@@ -64,7 +120,7 @@ const SessionContent = () => {
             .catch(() => {
                 setGoogleAuthChecked(true);
             });
-    }, [session, googleScopes]);
+    }, [resolvedSessionId, googleScopes]);
 
     // Mutations for components to use
     const sendMessage = useMutation(api.stage.sendMessage);
@@ -75,10 +131,10 @@ const SessionContent = () => {
     const convexContext = {
         liveData,
         messages,
-        sendMessage: (text: string, sender: string) => sendMessage({ sessionId, text, sender }),
-        setLiveData: (data: any) => setLiveData({ sessionId, data }),
-        reportError: (error: string) => reportError({ sessionId, error })
-    };
+        sendMessage: (text: string, sender: string) => sendMessage({ sessionId: resolvedSessionId, text, sender }),
+        setLiveData: (data: any) => setLiveData({ sessionId: resolvedSessionId, data }),
+        reportError: (error: string) => reportError({ sessionId: resolvedSessionId, error })
+    }; 
 
     // Convert files array to Record<path, content>
     const filesMap = useMemo(() => {
@@ -92,9 +148,17 @@ const SessionContent = () => {
 
     // Create Google client if user is authenticated
     const googleClient = useMemo<GoogleClient | undefined>(() => {
-        if (!googleAuthUser || !session) return undefined;
-        return createGoogleClient(googleAuthUser, session);
-    }, [googleAuthUser, session]);
+        if (!googleAuthUser || !resolvedSessionId) return undefined;
+        return createGoogleClient(googleAuthUser, resolvedSessionId);
+    }, [googleAuthUser, resolvedSessionId]);
+
+    if (sessionResolutionError) {
+        return <div style={{ padding: 40, color: '#ef4444', fontFamily: 'ui-monospace, monospace' }}>{sessionResolutionError}</div>;
+    }
+
+    if (!resolvedSessionId) {
+        return <Loader />;
+    }
 
     // Loading state
     if (renderState === undefined || allFiles === undefined) {
@@ -108,12 +172,12 @@ const SessionContent = () => {
 
     // Auth gate: show "Connect with Google" if scopes required but user not authenticated
     if (googleScopes && googleScopes.length > 0 && !googleAuthUser) {
-        return <AuthGate sessionId={session} scopes={googleScopes} />;
+        return <AuthGate sessionId={resolvedSessionId} scopes={googleScopes} />;
     }
 
     // No code yet — show instructions
     if (!renderState || Object.keys(filesMap).length === 0) {
-        const s = session;
+        const s = resolvedSessionId;
         const prompt = `You have access to Stage — a sandboxed React runtime that renders components live in the browser.
 
 Session: ${s}
@@ -193,7 +257,7 @@ Always pass --session ${s} on every command.`;
                                 <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#28c840' }} />
                             </div>
                             <div style={{ fontSize: 12, color: '#555', fontFamily: 'system-ui' }}>
-                                stage — {session}
+                                stage — {resolvedSessionId}
                             </div>
                             <button
                                 onClick={copyPrompt}
@@ -291,7 +355,7 @@ Always pass --session ${s} on every command.`;
                 code={entryCode}
                 files={filesMap}
                 entryPath={entryPath}
-                sessionId={session}
+                sessionId={resolvedSessionId}
                 convexContext={convexContext}
                 googleClient={googleClient}
                 stageApp={stageApp ? { sid: stageApp.sid, authorEmail: stageApp.authorEmail ?? undefined } : null}

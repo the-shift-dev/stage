@@ -3,6 +3,7 @@
 
 export const ALLOWED_IMPORT_PATHS = [
     'react',
+    'react-dom/client',
     'lucide-react',
     'lodash',
     'papaparse',

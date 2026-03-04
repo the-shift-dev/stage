@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { convexMutation } from '@/lib/convexHttp';
+import { resolveSessionIdForApiRequest } from '@/app/api/v1/stage/resolve-session-id';
 
 export async function POST(
   req: NextRequest,
@@ -9,9 +10,14 @@ export async function POST(
   const body = await req.json().catch(() => ({}));
   const entry = body.entry || '/app/App.tsx';
 
+  const resolvedSessionId = await resolveSessionIdForApiRequest(id);
+  if (!resolvedSessionId) {
+    return NextResponse.json({ success: false, error: `Session not found: ${id}` }, { status: 404 });
+  }
+
   try {
     const result = await convexMutation<{ entry: string; version: number }>('triggerRender', {
-      sessionId: id,
+      sessionId: resolvedSessionId,
       entry,
     });
 
