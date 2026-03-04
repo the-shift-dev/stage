@@ -227,7 +227,7 @@ Always pass --session ${s} on every command.`;
                     alignItems: 'center',
                     justifyContent: 'center',
                     height: '100vh',
-                    background: '#f8f8f8'
+                    background: 'hsl(var(--background))'
                 }}
             >
                 <div style={{ maxWidth: 620, width: '100%', padding: 24 }}>
@@ -320,7 +320,7 @@ Always pass --session ${s} on every command.`;
                     <div
                         style={{
                             fontSize: 12,
-                            color: '#a1a1aa',
+                            color: 'hsl(var(--muted-foreground))',
                             marginTop: 14,
                             textAlign: 'center',
                             fontFamily: 'system-ui'

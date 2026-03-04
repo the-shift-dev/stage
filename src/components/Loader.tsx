@@ -12,7 +12,7 @@ export default function Loader() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 height: '100vh',
-                background: '#fafafa'
+                background: 'hsl(var(--background))'
             }}
         >
             <Lottie

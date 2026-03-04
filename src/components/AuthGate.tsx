@@ -47,7 +47,7 @@ export default function AuthGate({ sessionId, scopes }: AuthGateProps) {
                 alignItems: 'center',
                 justifyContent: 'center',
                 height: '100vh',
-                background: '#f8f8f8',
+                background: 'hsl(var(--muted))',
                 fontFamily: 'system-ui, -apple-system, sans-serif'
             }}
         >
@@ -56,7 +56,7 @@ export default function AuthGate({ sessionId, scopes }: AuthGateProps) {
                     maxWidth: 440,
                     width: '100%',
                     padding: 32,
-                    background: '#fff',
+                    background: 'hsl(var(--card))',
                     borderRadius: 12,
                     boxShadow: '0 2px 16px rgba(0,0,0,0.08)',
                     textAlign: 'center'
@@ -72,11 +72,11 @@ export default function AuthGate({ sessionId, scopes }: AuthGateProps) {
                     </svg>
                 </div>
 
-                <h2 style={{ fontSize: 20, fontWeight: 600, color: '#1a1a1a', margin: '0 0 8px' }}>
+                <h2 style={{ fontSize: 20, fontWeight: 600, color: 'hsl(var(--foreground))', margin: '0 0 8px' }}>
                     Sign in with Google
                 </h2>
 
-                <p style={{ fontSize: 14, color: '#666', margin: '0 0 24px', lineHeight: 1.5 }}>
+                <p style={{ fontSize: 14, color: 'hsl(var(--muted-foreground))', margin: '0 0 24px', lineHeight: 1.5 }}>
                     This app needs access to your Google account to work.
                     You&apos;ll be asked to grant these permissions:
                 </p>
@@ -85,7 +85,7 @@ export default function AuthGate({ sessionId, scopes }: AuthGateProps) {
                 <div
                     style={{
                         textAlign: 'left',
-                        background: '#f9fafb',
+                        background: 'hsl(var(--secondary))',
                         borderRadius: 8,
                         padding: '12px 16px',
                         marginBottom: 24
@@ -100,7 +100,7 @@ export default function AuthGate({ sessionId, scopes }: AuthGateProps) {
                                 gap: 8,
                                 padding: '6px 0',
                                 fontSize: 13,
-                                color: '#374151'
+                                color: 'hsl(var(--foreground))'
                             }}
                         >
                             <span style={{ color: '#22c55e', fontSize: 16 }}>&#10003;</span>
@@ -134,7 +134,7 @@ export default function AuthGate({ sessionId, scopes }: AuthGateProps) {
                     Connect with Google
                 </button>
 
-                <p style={{ fontSize: 11, color: '#999', marginTop: 16, lineHeight: 1.4 }}>
+                <p style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 16, lineHeight: 1.4 }}>
                     Your credentials are handled securely. This app never sees your password.
                 </p>
             </div>

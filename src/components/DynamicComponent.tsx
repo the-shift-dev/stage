@@ -532,6 +532,68 @@ export default function DynamicComponent({ code, files, entryPath, sessionId, co
         return baseScope;
     }, [convexContext, googleClient, stageApp, scopeId, files, entryPath, code, frameWindow, frameDocument]);
 
+    // Inject Tailwind CDN into iframe so utility classes work inside sandboxed apps
+    useEffect(() => {
+        if (!frameDocument || !frameWindow) return;
+        if (frameDocument.querySelector('script[data-stage-tailwind]')) return;
+
+        const script = frameDocument.createElement('script');
+        script.src = 'https://cdn.tailwindcss.com';
+        script.async = true;
+        script.setAttribute('data-stage-tailwind', 'true');
+        script.onload = () => {
+            if ((frameWindow as any).tailwind) {
+                (frameWindow as any).tailwind.config = {
+                    theme: {
+                        extend: {
+                            colors: {
+                                border: 'hsl(var(--border))',
+                                input: 'hsl(var(--input))',
+                                ring: 'hsl(var(--ring))',
+                                background: 'hsl(var(--background))',
+                                foreground: 'hsl(var(--foreground))',
+                                primary: {
+                                    DEFAULT: 'hsl(var(--primary))',
+                                    foreground: 'hsl(var(--primary-foreground))',
+                                },
+                                secondary: {
+                                    DEFAULT: 'hsl(var(--secondary))',
+                                    foreground: 'hsl(var(--secondary-foreground))',
+                                },
+                                destructive: {
+                                    DEFAULT: 'hsl(var(--destructive))',
+                                    foreground: 'hsl(var(--destructive-foreground))',
+                                },
+                                muted: {
+                                    DEFAULT: 'hsl(var(--muted))',
+                                    foreground: 'hsl(var(--muted-foreground))',
+                                },
+                                accent: {
+                                    DEFAULT: 'hsl(var(--accent))',
+                                    foreground: 'hsl(var(--accent-foreground))',
+                                },
+                                popover: {
+                                    DEFAULT: 'hsl(var(--popover))',
+                                    foreground: 'hsl(var(--popover-foreground))',
+                                },
+                                card: {
+                                    DEFAULT: 'hsl(var(--card))',
+                                    foreground: 'hsl(var(--card-foreground))',
+                                },
+                            },
+                            borderRadius: {
+                                lg: 'var(--radius)',
+                                md: 'calc(var(--radius) - 2px)',
+                                sm: 'calc(var(--radius) - 4px)',
+                            },
+                        },
+                    },
+                };
+            }
+        };
+        frameDocument.head.appendChild(script);
+    }, [frameDocument, frameWindow]);
+
     useEffect(() => {
         return () => {
             resetCssImports();
@@ -565,7 +627,59 @@ export default function DynamicComponent({ code, files, entryPath, sessionId, co
                 title="Stage App"
                 onLoad={() => setFrameTick((v) => v + 1)}
                 style={{ width: '100%', height: '100%', border: 'none', background: 'transparent' }}
-                srcDoc="<!doctype html><html><head><meta charset='utf-8'/><style>html,body,#__stage-root{margin:0;padding:0;width:100%;height:100%;background:transparent;}</style></head><body><div id='__stage-root'></div></body></html>"
+                srcDoc={`<!doctype html><html><head><meta charset='utf-8'/><style>
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 47.4% 11.2%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 47.4% 11.2%;
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --destructive: 0 100% 50%;
+  --destructive-foreground: 210 40% 98%;
+  --ring: 215 20.2% 65.1%;
+  --radius: 0.5rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: 224 71% 4%;
+    --foreground: 213 31% 91%;
+    --muted: 223 47% 11%;
+    --muted-foreground: 215.4 16.3% 56.9%;
+    --accent: 216 34% 17%;
+    --accent-foreground: 210 40% 98%;
+    --popover: 224 71% 4%;
+    --popover-foreground: 213 31% 91%;
+    --border: 216 34% 17%;
+    --input: 216 34% 17%;
+    --card: 224 71% 4%;
+    --card-foreground: 213 31% 91%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 216 34% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --ring: 216 34% 17%;
+  }
+}
+html, body, #__stage-root {
+  margin: 0; padding: 0; width: 100%; height: 100%;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+* { border-color: hsl(var(--border)); }
+</style></head><body><div id='__stage-root'></div></body></html>`}
             />
 
             {frameRoot && frameWindow && !error &&
