@@ -39,6 +39,7 @@ const SessionContent = () => {
     const liveData = useQuery(api.stage.getLiveData, queryArgs);
     const messages = useQuery(api.stage.getMessages, queryArgs);
     const googleScopes = useQuery(api.stage.getGoogleScopes, queryArgs);
+    const stageApp = useQuery(api.stage.getAppBySession, queryArgs);
 
     // Debug logging
     console.log('[SessionContent] session:', session, 'queryArgs:', queryArgs);
@@ -293,6 +294,7 @@ Always pass --session ${s} on every command.`;
                 sessionId={session}
                 convexContext={convexContext}
                 googleClient={googleClient}
+                stageApp={stageApp ? { sid: stageApp.sid, authorEmail: stageApp.authorEmail ?? undefined } : null}
             />
         </div>
     );

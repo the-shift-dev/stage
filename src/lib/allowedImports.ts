@@ -51,7 +51,9 @@ export const ALLOWED_IMPORT_PATHS = [
     '@stage/kv',
     '@stage/db',
     '@stage/convex',
-    '@stage/google'
+    '@stage/google',
+    '@stage/pulse',
+    '@stage/ledger'
 ] as const;
 
 export const ALLOWED_IMPORTS_SET = new Set(ALLOWED_IMPORT_PATHS as readonly string[]);

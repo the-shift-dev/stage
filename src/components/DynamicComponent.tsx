@@ -4,6 +4,8 @@ import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { createKV, type StageKV } from '@/lib/kv';
 import type { GoogleClient } from '@/lib/googleClient';
+import { createPulseClient } from '@/lib/pulseClient';
+import { createLedgerClient } from '@/lib/ledgerClient';
 import ValidatedRunner from './ValidatedRunner';
 import { createVirtualModuleSystem } from '@/lib/moduleResolver';
 import { processCssImport } from '@/lib/cssProcessor';
@@ -222,6 +224,11 @@ interface ConvexContext {
     reportError?: (error: string) => Promise<any>;
 }
 
+interface StageAppInfo {
+    sid: string;
+    authorEmail?: string;
+}
+
 interface DynamicComponentProps {
     code: string;
     files?: Record<string, string>; // All session files
@@ -229,10 +236,11 @@ interface DynamicComponentProps {
     sessionId: string | null;
     convexContext?: ConvexContext;
     googleClient?: GoogleClient;
+    stageApp?: StageAppInfo | null;
 }
 
 
-export default function DynamicComponent({ code, files, entryPath, sessionId, convexContext, googleClient }: DynamicComponentProps) {
+export default function DynamicComponent({ code, files, entryPath, sessionId, convexContext, googleClient, stageApp }: DynamicComponentProps) {
     const [error, setError] = useState<string | null>(null);
     const kvRef = useRef<StageKV | null>(null);
     const cssStyleNodesRef = useRef<Map<string, HTMLStyleElement>>(new Map());
@@ -476,6 +484,15 @@ export default function DynamicComponent({ code, files, entryPath, sessionId, co
             baseScope.import['@stage/google'] = { google: googleClient, default: googleClient };
         }
 
+        // Pulse telemetry
+        const appContext = stageApp ? { stageAppId: stageApp.sid, authorEmail: stageApp.authorEmail } : undefined;
+        const pulseClient = createPulseClient(scopeId, scopeId, appContext);
+        baseScope.import['@stage/pulse'] = { pulse: pulseClient, default: pulseClient };
+
+        // Ledger audit
+        const ledgerClient = createLedgerClient(scopeId, scopeId, googleClient?.user?.email, appContext);
+        baseScope.import['@stage/ledger'] = { ledger: ledgerClient, default: ledgerClient };
+
         // Add virtual module resolver for session files (supports nested relative imports)
         if (entryPath) {
             const moduleFiles: Record<string, string> = { ...(files || {}) };
@@ -511,7 +528,7 @@ export default function DynamicComponent({ code, files, entryPath, sessionId, co
         }
 
         return baseScope;
-    }, [convexContext, googleClient, files, entryPath, code, frameWindow, frameDocument]);
+    }, [convexContext, googleClient, stageApp, scopeId, files, entryPath, code, frameWindow, frameDocument]);
 
     useEffect(() => {
         return () => {
