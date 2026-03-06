@@ -1,45 +1,18 @@
-import { execFileSync } from 'node:child_process';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { expect, test } from '@playwright/test';
+const path = require('node:path');
+const { expect, test } = require('@playwright/test');
+const { newStageSession, openStageSession, pushDirectory } = require('./helpers/stage.cjs');
 
-const stageUrl = process.env.STAGE_URL || 'http://127.0.0.1:3000';
-const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const stageCliEntry = path.join(rootDir, 'stage-cli/packages/cli/src/main.ts');
+const rootDir = path.resolve(__dirname, '../../..');
 const exampleDir = path.join(rootDir, 'stage-cli/examples/inference-sheets-describer-app');
-
-function runStage(args: string[]): string {
-    return execFileSync('bun', [stageCliEntry, ...args], {
-        cwd: rootDir,
-        encoding: 'utf8',
-        env: {
-            ...process.env,
-            STAGE_URL: stageUrl
-        }
-    }).trim();
-}
-
-function newSession(): string {
-    const output = runStage(['new', '--json']);
-    return JSON.parse(output).id as string;
-}
-
-function pushExample(sessionId: string): void {
-    runStage(['push', exampleDir, '/app', '--session', sessionId]);
-}
 
 test.describe('@integration inference sheets describer', () => {
     test.skip(!process.env.LIVE_INFERENCE_E2E, 'Set LIVE_INFERENCE_E2E=1 to run the live Stage inference canary');
 
     test('renders fixture sheets, enforces the selection cap, and generates summaries', async ({ page }) => {
-        const sessionId = newSession();
-        pushExample(sessionId);
+        const sessionId = newStageSession();
+        pushDirectory(sessionId, exampleDir);
 
-        await page.goto(`${stageUrl}/s/${sessionId}`, {
-            waitUntil: 'domcontentloaded'
-        });
-
-        const app = page.frameLocator('iframe[data-stage-app]');
+        const app = await openStageSession(page, sessionId);
         await expect(app.locator('#app-title')).toHaveText('Sheets Describer', {
             timeout: 15_000
         });
@@ -53,10 +26,14 @@ test.describe('@integration inference sheets describer', () => {
             'campaign-performance',
             'incident-timeline',
             'customer-health',
-            'product-backlog'
+            'product-backlog',
+            'event-leads'
         ];
 
         for (const id of extraSelections) {
+            if ((await app.locator('#selected-count').textContent())?.trim() === '10') {
+                break;
+            }
             await app.locator(`[data-doc-id="${id}"]`).click();
         }
 
@@ -87,5 +64,7 @@ test.describe('@integration inference sheets describer', () => {
         await expect
             .poll(async () => app.locator('[data-summary-status="cache"]').count(), { timeout: 20_000 })
             .toBe(3);
+
+        await page.waitForTimeout(6000);
     });
 });

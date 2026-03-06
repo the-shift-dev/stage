@@ -68,6 +68,17 @@ export function createGoogleClient(user: GoogleUser, sessionId: string): GoogleC
       }),
     });
 
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      let message = `Google API proxy error (${res.status})`;
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed?.error?.message) message = parsed.error.message;
+      } catch {
+        if (text) message = `${message}: ${text.slice(0, 200)}`;
+      }
+      throw new Error(message);
+    }
     const json = await res.json();
     if (!json.success) {
       throw new Error(json.error?.message ?? `Google API error (${res.status})`);
