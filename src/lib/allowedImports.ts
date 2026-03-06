@@ -50,9 +50,11 @@ export const ALLOWED_IMPORT_PATHS = [
     '@/components/ui/toggle-group',
     '@/components/ui/tooltip',
     '@stage/kv',
+    '@stage/app',
     '@stage/db',
     '@stage/convex',
     '@stage/google',
+    '@stage/inference',
     '@stage/pulse',
     '@stage/ledger'
 ] as const;

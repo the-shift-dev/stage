@@ -6,6 +6,7 @@ describe('allowedImports', () => {
     expect(ALLOWED_IMPORT_PATHS).toContain('react');
     expect(ALLOWED_IMPORT_PATHS).toContain('@stage/convex');
     expect(ALLOWED_IMPORT_PATHS).toContain('@stage/google');
+    expect(ALLOWED_IMPORT_PATHS).toContain('@stage/inference');
   });
 
   it('keeps set in sync with path list', () => {

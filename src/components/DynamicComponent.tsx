@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import * as ReactDOMClient from 'react-dom/client';
 import { createKV, type StageKV } from '@/lib/kv';
 import type { GoogleClient } from '@/lib/googleClient';
+import { createInferenceClient } from '@/lib/inferenceClient';
 import { createPulseClient } from '@/lib/pulseClient';
 import { createLedgerClient } from '@/lib/ledgerClient';
 import ValidatedRunner from './ValidatedRunner';
@@ -474,6 +475,11 @@ export default function DynamicComponent({ code, files, entryPath, sessionId, co
             baseScope.import['@stage/kv'] = { kv: kvRef.current };
         }
 
+        if (stageApp) {
+            (baseScope as any).app = stageApp;
+            baseScope.import['@stage/app'] = { app: stageApp, default: stageApp };
+        }
+
         // Add Convex context for live data access
         if (convexContext) {
             (baseScope as any).convex = convexContext;
@@ -485,6 +491,10 @@ export default function DynamicComponent({ code, files, entryPath, sessionId, co
             (baseScope as any).google = googleClient;
             baseScope.import['@stage/google'] = { google: googleClient, default: googleClient };
         }
+
+        const inferenceClient = createInferenceClient(scopeId);
+        (baseScope as any).inference = inferenceClient;
+        baseScope.import['@stage/inference'] = { inference: inferenceClient, default: inferenceClient };
 
         // Pulse telemetry
         const appContext = stageApp ? { stageAppId: stageApp.sid, authorEmail: stageApp.authorEmail } : undefined;
