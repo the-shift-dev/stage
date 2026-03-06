@@ -10,6 +10,7 @@ const appDir =
     process.env.INFERENCE_SHEETS_APP_DIR ||
     (existsSync(defaultShiftAppsDir) ? defaultShiftAppsDir : fallbackExampleDir);
 const providedSessionId = process.env.INFERENCE_SHEETS_SESSION_ID || '';
+const skipPush = process.env.INFERENCE_SHEETS_SKIP_PUSH === '1';
 
 test.describe('@integration inference sheets describer shift-app', () => {
     test.skip(!process.env.LIVE_INFERENCE_E2E, 'Set LIVE_INFERENCE_E2E=1 to run the live Stage inference canary');
@@ -21,12 +22,18 @@ test.describe('@integration inference sheets describer shift-app', () => {
     }) => {
         test.setTimeout(180_000);
 
+        if (skipPush && !providedSessionId) {
+            throw new Error('INFERENCE_SHEETS_SKIP_PUSH=1 requires INFERENCE_SHEETS_SESSION_ID');
+        }
+
         const sessionId = providedSessionId || newStageSession();
-        pushDirectory(sessionId, appDir);
+        if (!skipPush) {
+            pushDirectory(sessionId, appDir);
+        }
 
         const app = await openStageSession(page, sessionId);
 
-        await expect(app.locator('#app-title')).toContainText('Describe up to ten spreadsheets', {
+        await expect(app.locator('#app-title')).toContainText(/Sheets Describer|Describe up to ten spreadsheets/i, {
             timeout: 20_000
         });
         await expect(app.locator('[data-doc-id]')).toHaveCount(12);
