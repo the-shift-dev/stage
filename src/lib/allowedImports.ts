@@ -55,6 +55,7 @@ export const ALLOWED_IMPORT_PATHS = [
     '@stage/convex',
     '@stage/google',
     '@stage/inference',
+    '@stage/utils',
     '@stage/pulse',
     '@stage/ledger'
 ] as const;

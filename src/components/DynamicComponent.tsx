@@ -218,6 +218,29 @@ if (typeof window !== 'undefined') {
     }
 }
 
+// @stage/utils — batch helpers exposed to frontend code
+async function fetchWithRetry(url: string, opts: RequestInit, maxRetries = 3): Promise<Response> {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        const res = await fetch(url, opts);
+        if (res.status === 429 || (res.status >= 500 && attempt < maxRetries)) {
+            const base = Math.pow(2, attempt) * 1000;
+            await new Promise((r) => setTimeout(r, base + Math.random() * 500));
+            continue;
+        }
+        return res;
+    }
+    return fetch(url, opts);
+}
+
+async function batchedMap<T, R>(items: T[], fn: (item: T) => Promise<R>, concurrency = 5): Promise<R[]> {
+    const results: R[] = [];
+    for (let i = 0; i < items.length; i += concurrency) {
+        const batch = items.slice(i, i + concurrency);
+        results.push(...(await Promise.all(batch.map(fn))));
+    }
+    return results;
+}
+
 interface ConvexContext {
     liveData: any;
     messages: any[] | undefined;
@@ -495,6 +518,10 @@ export default function DynamicComponent({ code, files, entryPath, sessionId, co
         const inferenceClient = createInferenceClient(scopeId);
         (baseScope as any).inference = inferenceClient;
         baseScope.import['@stage/inference'] = { inference: inferenceClient, default: inferenceClient };
+
+        // Utils — batch helpers available to frontend code
+        const stageUtils = { fetchWithRetry, batchedMap };
+        baseScope.import['@stage/utils'] = { fetchWithRetry, batchedMap, default: stageUtils };
 
         // Pulse telemetry
         const appContext = stageApp ? { stageAppId: stageApp.sid, authorEmail: stageApp.authorEmail } : undefined;
