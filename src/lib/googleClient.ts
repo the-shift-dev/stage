@@ -20,7 +20,12 @@ export interface GoogleClient {
   api(
     service: string,
     path: string,
-    opts?: { method?: string; params?: Record<string, string>; body?: any },
+    opts?: {
+      operation?: string;
+      method?: string;
+      params?: Record<string, string>;
+      body?: any;
+    },
   ): Promise<any>;
 
   /** Google Drive convenience methods. */
@@ -50,7 +55,12 @@ export function createGoogleClient(user: GoogleUser, sessionId: string): GoogleC
   async function callProxy(
     service: string,
     path: string,
-    opts?: { method?: string; params?: Record<string, string>; body?: any },
+    opts?: {
+      operation?: string;
+      method?: string;
+      params?: Record<string, string>;
+      body?: any;
+    },
   ): Promise<any> {
     const res = await fetch(proxyUrl, {
       method: "POST",
@@ -62,6 +72,7 @@ export function createGoogleClient(user: GoogleUser, sessionId: string): GoogleC
       body: JSON.stringify({
         service,
         path,
+        operation: opts?.operation,
         method: opts?.method ?? "GET",
         params: opts?.params,
         body: opts?.body,
@@ -97,12 +108,22 @@ export function createGoogleClient(user: GoogleUser, sessionId: string): GoogleC
         const params: Record<string, string> = {};
         if (query) params.q = query;
         if (pageSize) params.pageSize = String(pageSize);
-        return callProxy("drive", "drive/v3/files", { params });
+        return callProxy("drive", "drive/v3/files", {
+          operation: "drive.listFiles",
+          params,
+        });
       },
       getFile(fileId: string) {
-        return callProxy("drive", `drive/v3/files/${encodeURIComponent(fileId)}`, {
-          params: { fields: "id,name,mimeType,size,modifiedTime,webViewLink" },
-        });
+        return callProxy(
+          "drive",
+          `drive/v3/files/${encodeURIComponent(fileId)}`,
+          {
+            operation: "drive.getFile",
+            params: {
+              fields: "id,name,mimeType,size,modifiedTime,webViewLink",
+            },
+          },
+        );
       },
     },
 
@@ -111,15 +132,21 @@ export function createGoogleClient(user: GoogleUser, sessionId: string): GoogleC
         return callProxy(
           "sheets",
           `v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}`,
+          { operation: "sheets.getValues" },
         );
       },
     },
 
     calendar: {
       listEvents(calendarId = "primary", params?: Record<string, string>) {
-        return callProxy("calendar", `calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`, {
-          params,
-        });
+        return callProxy(
+          "calendar",
+          `calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`,
+          {
+            operation: "calendar.listEvents",
+            params,
+          },
+        );
       },
     },
   };

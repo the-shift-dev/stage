@@ -36,7 +36,10 @@ describe("googleClient", () => {
 
     expect(data).toEqual({ ok: true });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
     expect(url).toBe("/api/v1/stage/google-proxy");
     expect(init.method).toBe("POST");
     expect(init.credentials).toBe("include");
@@ -52,6 +55,7 @@ describe("googleClient", () => {
       params: { q: "name contains report" },
       body: { test: 1 },
     });
+    expect(body).not.toHaveProperty("operation");
   });
 
   it("defaults method to GET", async () => {
@@ -64,7 +68,10 @@ describe("googleClient", () => {
     const client = createGoogleClient(user, "session-2");
     await client.api("sheets", "v4/spreadsheets/x/values/A1:B2");
 
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [, init] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
     const body = JSON.parse(String(init.body));
     expect(body.method).toBe("GET");
   });
@@ -86,6 +93,7 @@ describe("googleClient", () => {
     );
     expect(firstBody.service).toBe("drive");
     expect(firstBody.path).toBe("drive/v3/files");
+    expect(firstBody.operation).toBe("drive.listFiles");
     expect(firstBody.params).toEqual({
       q: "name contains x",
       pageSize: "10",
@@ -94,11 +102,13 @@ describe("googleClient", () => {
     const secondBody = JSON.parse(
       String((fetchMock.mock.calls[1] as any[])[1].body),
     );
+    expect(secondBody.operation).toBe("drive.listFiles");
     expect(secondBody.params).toEqual({});
 
     const thirdBody = JSON.parse(
       String((fetchMock.mock.calls[2] as any[])[1].body),
     );
+    expect(thirdBody.operation).toBe("drive.getFile");
     expect(thirdBody.path).toContain("drive/v3/files/");
     expect(thirdBody.path).toContain(
       encodeURIComponent("file id/with spaces"),
@@ -121,6 +131,7 @@ describe("googleClient", () => {
       String((fetchMock.mock.calls[0] as any[])[1].body),
     );
     expect(sheetsBody.service).toBe("sheets");
+    expect(sheetsBody.operation).toBe("sheets.getValues");
     expect(sheetsBody.path).toContain(encodeURIComponent("sheet id"));
     expect(sheetsBody.path).toContain(encodeURIComponent("A1:B2"));
 
@@ -128,6 +139,7 @@ describe("googleClient", () => {
       String((fetchMock.mock.calls[1] as any[])[1].body),
     );
     expect(calendarBody.service).toBe("calendar");
+    expect(calendarBody.operation).toBe("calendar.listEvents");
     expect(calendarBody.params).toEqual({ maxResults: "5" });
   });
 
