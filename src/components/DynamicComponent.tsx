@@ -262,10 +262,19 @@ interface DynamicComponentProps {
     convexContext?: ConvexContext;
     googleClient?: GoogleClient;
     stageApp?: StageAppInfo | null;
+    onIframeRef?: (iframe: HTMLIFrameElement | null) => void;
 }
 
-
-export default function DynamicComponent({ code, files, entryPath, sessionId, convexContext, googleClient, stageApp }: DynamicComponentProps) {
+export default function DynamicComponent({
+    code,
+    files,
+    entryPath,
+    sessionId,
+    convexContext,
+    googleClient,
+    stageApp,
+    onIframeRef
+}: DynamicComponentProps) {
     const [error, setError] = useState<string | null>(null);
     const kvRef = useRef<StageKV | null>(null);
     const cssStyleNodesRef = useRef<Map<string, HTMLStyleElement>>(new Map());
@@ -282,7 +291,7 @@ export default function DynamicComponent({ code, files, entryPath, sessionId, co
 
     const applyCssImport = ({
         filePath,
-        files: allFiles,
+        files: allFiles
     }: {
         filePath: string;
         cssContent: string;
@@ -550,8 +559,8 @@ export default function DynamicComponent({ code, files, entryPath, sessionId, co
                     globalThis: frameWindow,
                     navigator: frameWindow?.navigator,
                     fetch: frameWindow?.fetch?.bind(frameWindow),
-                    XMLHttpRequest: (frameWindow as any)?.XMLHttpRequest,
-                },
+                    XMLHttpRequest: (frameWindow as any)?.XMLHttpRequest
+                }
             });
 
             (baseScope as any).__stageRequire = moduleSystem.requireFor(entryPath);
@@ -562,7 +571,7 @@ export default function DynamicComponent({ code, files, entryPath, sessionId, co
                 globalThis: frameWindow,
                 navigator: frameWindow?.navigator,
                 fetch: frameWindow?.fetch?.bind(frameWindow),
-                XMLHttpRequest: (frameWindow as any)?.XMLHttpRequest,
+                XMLHttpRequest: (frameWindow as any)?.XMLHttpRequest
             };
         }
 
@@ -591,40 +600,40 @@ export default function DynamicComponent({ code, files, entryPath, sessionId, co
                                 foreground: 'var(--foreground)',
                                 primary: {
                                     DEFAULT: 'var(--primary)',
-                                    foreground: 'var(--primary-foreground)',
+                                    foreground: 'var(--primary-foreground)'
                                 },
                                 secondary: {
                                     DEFAULT: 'var(--secondary)',
-                                    foreground: 'var(--secondary-foreground)',
+                                    foreground: 'var(--secondary-foreground)'
                                 },
                                 destructive: {
                                     DEFAULT: 'var(--destructive)',
-                                    foreground: 'var(--destructive-foreground)',
+                                    foreground: 'var(--destructive-foreground)'
                                 },
                                 muted: {
                                     DEFAULT: 'var(--muted)',
-                                    foreground: 'var(--muted-foreground)',
+                                    foreground: 'var(--muted-foreground)'
                                 },
                                 accent: {
                                     DEFAULT: 'var(--accent)',
-                                    foreground: 'var(--accent-foreground)',
+                                    foreground: 'var(--accent-foreground)'
                                 },
                                 popover: {
                                     DEFAULT: 'var(--popover)',
-                                    foreground: 'var(--popover-foreground)',
+                                    foreground: 'var(--popover-foreground)'
                                 },
                                 card: {
                                     DEFAULT: 'var(--card)',
-                                    foreground: 'var(--card-foreground)',
-                                },
+                                    foreground: 'var(--card-foreground)'
+                                }
                             },
                             borderRadius: {
                                 lg: 'var(--radius)',
                                 md: 'calc(var(--radius) - 2px)',
-                                sm: 'calc(var(--radius) - 4px)',
-                            },
-                        },
-                    },
+                                sm: 'calc(var(--radius) - 4px)'
+                            }
+                        }
+                    }
                 };
             }
         };
@@ -663,7 +672,10 @@ export default function DynamicComponent({ code, files, entryPath, sessionId, co
     return (
         <div style={{ width: '100%', height: '100%', minHeight: '100vh', position: 'relative' }}>
             <iframe
-                ref={iframeRef}
+                ref={(node) => {
+                    iframeRef.current = node;
+                    onIframeRef?.(node);
+                }}
                 data-stage-app="true"
                 title="Stage App"
                 onLoad={() => setFrameTick((v) => v + 1)}
@@ -676,7 +688,9 @@ html, body, #__stage-root {
 </style></head><body><div id='__stage-root'></div></body></html>`}
             />
 
-            {frameRoot && frameWindow && !error &&
+            {frameRoot &&
+                frameWindow &&
+                !error &&
                 createPortal(<ValidatedRunner code={code} scope={scope} onErrorAction={handleError} />, frameRoot)}
 
             {error && (

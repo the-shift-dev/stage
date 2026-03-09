@@ -1,20 +1,19 @@
 'use client';
 
-import { Suspense, useState, useMemo, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { Suspense, useState, useMemo, useEffect, useRef } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 import DynamicComponent from '@/components/DynamicComponent';
 import AuthGate from '@/components/AuthGate';
+import FeedbackBubble from '@/components/feedback/FeedbackBubble';
 import Loader from '@/components/Loader';
 import TailwindProvider from '@/components/TailwindProvider';
+import { resolveFeedbackTarget, type StageFeedbackAppLike } from '@/lib/feedback';
 import { createGoogleClient, type GoogleClient, type GoogleUser } from '@/lib/googleClient';
-import {
-    resolveSessionId,
-    isLikelyConvexSessionId,
-    type StageSessionSummary,
-} from '@/lib/session-resolver';
+import { fetchFeedbackContext } from '@/lib/feedback-client';
+import { resolveSessionId, isLikelyConvexSessionId, type StageSessionSummary } from '@/lib/session-resolver';
 
 export default function SessionPage() {
     return (
@@ -28,11 +27,13 @@ export default function SessionPage() {
 
 const SessionContent = () => {
     const { session } = useParams<{ session: string }>();
+    const searchParams = useSearchParams();
     const [copied, setCopied] = useState(false);
     const [googleAuthUser, setGoogleAuthUser] = useState<GoogleUser | null>(null);
     const [googleAuthChecked, setGoogleAuthChecked] = useState(false);
     const [resolvedSessionId, setResolvedSessionId] = useState<Id<'sessions'> | null>(null);
     const [sessionResolutionError, setSessionResolutionError] = useState<string | null>(null);
+    const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -95,7 +96,7 @@ const SessionContent = () => {
     const liveData = useQuery(api.stage.getLiveData, queryArgs);
     const messages = useQuery(api.stage.getMessages, queryArgs);
     const googleScopes = useQuery(api.stage.getGoogleScopes, queryArgs);
-    const stageApp = useQuery(api.stage.getAppBySession, queryArgs);
+    const [stageApp, setStageApp] = useState<StageFeedbackAppLike | null>(null);
 
     // Debug logging
     console.log('[SessionContent] session:', session, 'queryArgs:', queryArgs);
@@ -122,19 +123,69 @@ const SessionContent = () => {
             });
     }, [resolvedSessionId, googleScopes]);
 
+    useEffect(() => {
+        let cancelled = false;
+
+        if (!resolvedSessionId) {
+            setStageApp(null);
+            return;
+        }
+
+        fetchFeedbackContext(resolvedSessionId)
+            .then((app) => {
+                if (!cancelled) {
+                    setStageApp(app);
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setStageApp(null);
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [resolvedSessionId]);
+
     // Mutations for components to use
     const sendMessage = useMutation(api.stage.sendMessage);
     const setLiveData = useMutation(api.stage.setLiveData);
     const reportError = useMutation(api.stage.reportError);
+    const feedbackStageApp = stageApp;
+    const feedbackParam = searchParams.get('feedback') === '1';
+    const studioSessionSid = searchParams.get('studioSessionSid');
+    const feedbackTarget = useMemo(
+        () => resolveFeedbackTarget(feedbackStageApp, resolvedSessionId),
+        [feedbackStageApp, resolvedSessionId]
+    );
+    const showFeedback = Boolean(
+        feedbackStageApp && feedbackTarget.appVersionSid && (feedbackTarget.channel === 'preview' || feedbackParam)
+    );
 
     // Create convex context for components
     const convexContext = {
         liveData,
         messages,
-        sendMessage: (text: string, sender: string) => sendMessage({ sessionId: resolvedSessionId, text, sender }),
-        setLiveData: (data: any) => setLiveData({ sessionId: resolvedSessionId, data }),
-        reportError: (error: string) => reportError({ sessionId: resolvedSessionId, error })
-    }; 
+        sendMessage: (text: string, sender: string) => {
+            if (!resolvedSessionId) {
+                return Promise.reject(new Error('Session not resolved'));
+            }
+            return sendMessage({ sessionId: resolvedSessionId, text, sender });
+        },
+        setLiveData: (data: any) => {
+            if (!resolvedSessionId) {
+                return Promise.reject(new Error('Session not resolved'));
+            }
+            return setLiveData({ sessionId: resolvedSessionId, data });
+        },
+        reportError: (error: string) => {
+            if (!resolvedSessionId) {
+                return Promise.reject(new Error('Session not resolved'));
+            }
+            return reportError({ sessionId: resolvedSessionId, error });
+        }
+    };
 
     // Convert files array to Record<path, content>
     const filesMap = useMemo(() => {
@@ -153,7 +204,11 @@ const SessionContent = () => {
     }, [googleAuthUser, resolvedSessionId]);
 
     if (sessionResolutionError) {
-        return <div style={{ padding: 40, color: '#ef4444', fontFamily: 'ui-monospace, monospace' }}>{sessionResolutionError}</div>;
+        return (
+            <div style={{ padding: 40, color: '#ef4444', fontFamily: 'ui-monospace, monospace' }}>
+                {sessionResolutionError}
+            </div>
+        );
     }
 
     if (!resolvedSessionId) {
@@ -359,7 +414,23 @@ Always pass --session ${s} on every command.`;
                 convexContext={convexContext}
                 googleClient={googleClient}
                 stageApp={stageApp ? { sid: stageApp.sid, authorEmail: stageApp.authorEmail ?? undefined } : null}
+                onIframeRef={(iframe) => {
+                    iframeRef.current = iframe;
+                }}
             />
+            {showFeedback && feedbackStageApp && feedbackTarget.appVersionSid ? (
+                <FeedbackBubble
+                    iframeRef={iframeRef}
+                    appSid={feedbackStageApp.sid}
+                    appName={feedbackStageApp.name}
+                    appVersionSid={feedbackTarget.appVersionSid}
+                    sessionId={resolvedSessionId}
+                    channel={feedbackTarget.channel}
+                    viewerEmail={googleAuthUser?.email}
+                    viewerName={googleAuthUser?.name}
+                    studioSessionSid={studioSessionSid}
+                />
+            ) : null}
         </div>
     );
 };
