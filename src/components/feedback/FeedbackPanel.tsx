@@ -48,9 +48,13 @@ function statusColor(status: StageFeedbackRecordLike['status']) {
     }
 }
 
-function annotationLabel(annotation: FeedbackAnnotation) {
+function annotationLabel(annotation: FeedbackAnnotation, truncate?: number) {
     const summary = annotation.elementText ? ` ${annotation.elementText}` : '';
-    return `${annotation.elementTag}${summary}`.trim();
+    const full = `${annotation.elementTag}${summary}`.trim();
+    if (truncate && full.length > truncate) {
+        return `${full.slice(0, truncate)}…`;
+    }
+    return full;
 }
 
 export default function FeedbackPanel(props: FeedbackPanelProps) {
@@ -203,7 +207,16 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                         </div>
 
                         {annotations.length > 0 ? (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    gap: annotations.length > 3 ? 5 : 8,
+                                    maxHeight: annotations.length > 3 ? 110 : undefined,
+                                    overflowY: annotations.length > 3 ? 'auto' : undefined,
+                                    paddingRight: annotations.length > 3 ? 4 : undefined
+                                }}
+                            >
                                 {annotations.map((annotation, index) => (
                                     <button
                                         key={`${annotation.elementSelector}-${index}`}
@@ -215,13 +228,14 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                                             borderRadius: 999,
                                             background: 'var(--bg-key, rgba(0, 140, 255, 0.08))',
                                             color: 'var(--text-secondary, #494440)',
-                                            padding: '7px 10px',
+                                            padding: annotations.length > 3 ? '5px 8px' : '7px 10px',
                                             cursor: 'pointer',
-                                            fontSize: 12,
-                                            maxWidth: '100%'
+                                            fontSize: annotations.length > 3 ? 11 : 12,
+                                            maxWidth: '100%',
+                                            lineHeight: 1.3
                                         }}
                                     >
-                                        {annotationLabel(annotation)} x
+                                        {annotationLabel(annotation, annotations.length > 3 ? 40 : undefined)} ×
                                     </button>
                                 ))}
                             </div>
@@ -240,21 +254,25 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                         )}
 
                         {annotations.length > 1 ? (
-                            <button
-                                type="button"
-                                onClick={onClearAnnotations}
-                                style={{
-                                    justifySelf: 'start',
-                                    border: 'none',
-                                    background: 'transparent',
-                                    color: 'var(--accent, #008CFF)',
-                                    cursor: 'pointer',
-                                    fontSize: 12,
-                                    padding: 0
-                                }}
-                            >
-                                Clear all annotations
-                            </button>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <button
+                                    type="button"
+                                    onClick={onClearAnnotations}
+                                    style={{
+                                        border: 'none',
+                                        background: 'transparent',
+                                        color: 'var(--accent, #008CFF)',
+                                        cursor: 'pointer',
+                                        fontSize: 12,
+                                        padding: 0
+                                    }}
+                                >
+                                    Clear all
+                                </button>
+                                <span style={{ fontSize: 11, color: 'var(--text-muted, #848281)' }}>
+                                    {annotations.length} elements
+                                </span>
+                            </div>
                         ) : null}
                     </div>
 
