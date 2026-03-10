@@ -268,10 +268,10 @@ export default function FeedbackBubble(props: FeedbackBubbleProps) {
                     width: 52,
                     height: 52,
                     borderRadius: '50%',
-                    border: '1px solid rgba(148, 163, 184, 0.28)',
-                    background: 'linear-gradient(135deg, #2563eb, #0f172a)',
-                    color: '#eff6ff',
-                    boxShadow: '0 18px 48px rgba(15, 23, 42, 0.45)',
+                    border: '1px solid var(--border-key, #EDEDED)',
+                    background: 'var(--accent, #008CFF)',
+                    color: '#fff',
+                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
                     cursor: 'pointer',
                     fontSize: 22,
                     fontWeight: 700
@@ -291,7 +291,7 @@ export default function FeedbackBubble(props: FeedbackBubbleProps) {
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            background: '#ef4444',
+                            background: 'var(--status-danger, #ef4444)',
                             color: '#fff',
                             fontSize: 11,
                             fontWeight: 700

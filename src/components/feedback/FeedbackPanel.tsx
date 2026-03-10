@@ -38,13 +38,13 @@ function formatTimestamp(value: number) {
 function statusColor(status: StageFeedbackRecordLike['status']) {
     switch (status) {
         case 'resolved':
-            return '#16a34a';
+            return 'var(--status-ok, #16a34a)';
         case 'dismissed':
-            return '#ef4444';
+            return 'var(--status-danger, #ef4444)';
         case 'in_progress':
-            return '#d97706';
+            return 'var(--status-warning, #d97706)';
         default:
-            return '#2563eb';
+            return 'var(--accent, #008CFF)';
     }
 }
 
@@ -87,32 +87,31 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                 width: 360,
                 maxWidth: 'calc(100vw - 32px)',
                 borderRadius: 16,
-                border: '1px solid rgba(148, 163, 184, 0.3)',
-                background: 'rgba(15, 23, 42, 0.96)',
-                color: '#e2e8f0',
-                boxShadow: '0 24px 80px rgba(15, 23, 42, 0.45)',
-                overflow: 'hidden',
-                backdropFilter: 'blur(14px)'
+                border: '1px solid var(--border-key, #EDEDED)',
+                background: 'var(--bg-primary, #FBFAF9)',
+                color: 'var(--text-primary, #121212)',
+                boxShadow: '0 4px 24px rgba(0, 0, 0, 0.08)',
+                overflow: 'hidden'
             }}
         >
             <div
                 style={{
                     padding: '14px 16px',
-                    borderBottom: '1px solid rgba(148, 163, 184, 0.2)',
-                    background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.22), rgba(15, 23, 42, 0.10))'
+                    borderBottom: '1px solid var(--border-key, #EDEDED)',
+                    background: 'var(--bg-secondary, #F6F4EF)'
                 }}
             >
-                <div style={{ fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#93c5fd' }}>
+                <div style={{ fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--accent, #008CFF)' }}>
                     Stage feedback
                 </div>
                 <div style={{ marginTop: 6, fontSize: 18, fontWeight: 700 }}>{appName || 'Preview review'}</div>
-                <div style={{ marginTop: 6, fontSize: 12, color: '#cbd5e1' }}>
+                <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-secondary, #494440)' }}>
                     Target: {channel ?? 'unassigned version'}
                     {studioSessionSid ? ` - linked to Studio ${studioSessionSid}` : ' - copyable for local agents'}
                 </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 8, padding: 12, borderBottom: '1px solid rgba(148, 163, 184, 0.14)' }}>
+            <div style={{ display: 'flex', gap: 8, padding: 12, borderBottom: '1px solid var(--border-key, #EDEDED)' }}>
                 {(['new', 'history'] as const).map((tab) => (
                     <button
                         key={tab}
@@ -126,8 +125,8 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                             cursor: 'pointer',
                             fontSize: 13,
                             fontWeight: 600,
-                            color: activeTab === tab ? '#eff6ff' : '#cbd5e1',
-                            background: activeTab === tab ? '#2563eb' : 'rgba(30, 41, 59, 0.9)'
+                            color: activeTab === tab ? '#fff' : 'var(--text-secondary, #494440)',
+                            background: activeTab === tab ? 'var(--accent, #008CFF)' : 'var(--bg-secondary, #F6F4EF)'
                         }}
                     >
                         {tab === 'new' ? 'New Feedback' : `History (${history.length})`}
@@ -138,7 +137,7 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
             {activeTab === 'new' ? (
                 <div style={{ padding: 16, display: 'grid', gap: 14 }}>
                     <div style={{ display: 'grid', gap: 8 }}>
-                        <label style={{ fontSize: 12, color: '#cbd5e1' }}>Your email</label>
+                        <label style={{ fontSize: 12, color: 'var(--text-secondary, #494440)' }}>Your email</label>
                         <input
                             type="email"
                             value={authorEmail}
@@ -146,10 +145,10 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                             placeholder="you@example.com"
                             style={{
                                 width: '100%',
-                                border: '1px solid rgba(148, 163, 184, 0.28)',
+                                border: '1px solid var(--border-key, #EDEDED)',
                                 borderRadius: 10,
-                                background: 'rgba(15, 23, 42, 0.85)',
-                                color: '#f8fafc',
+                                background: 'var(--bg-key, #FFFFFF)',
+                                color: 'var(--text-primary, #121212)',
                                 padding: '10px 12px',
                                 fontSize: 13
                             }}
@@ -157,7 +156,7 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                     </div>
 
                     <div style={{ display: 'grid', gap: 8 }}>
-                        <label style={{ fontSize: 12, color: '#cbd5e1' }}>Your name (optional)</label>
+                        <label style={{ fontSize: 12, color: 'var(--text-secondary, #494440)' }}>Your name (optional)</label>
                         <input
                             type="text"
                             value={authorName}
@@ -165,10 +164,10 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                             placeholder="Name"
                             style={{
                                 width: '100%',
-                                border: '1px solid rgba(148, 163, 184, 0.28)',
+                                border: '1px solid var(--border-key, #EDEDED)',
                                 borderRadius: 10,
-                                background: 'rgba(15, 23, 42, 0.85)',
-                                color: '#f8fafc',
+                                background: 'var(--bg-key, #FFFFFF)',
+                                color: 'var(--text-primary, #121212)',
                                 padding: '10px 12px',
                                 fontSize: 13
                             }}
@@ -181,7 +180,7 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                         >
                             <div>
                                 <div style={{ fontSize: 13, fontWeight: 600 }}>Annotated elements</div>
-                                <div style={{ marginTop: 2, fontSize: 12, color: '#94a3b8' }}>
+                                <div style={{ marginTop: 2, fontSize: 12, color: 'var(--text-muted, #848281)' }}>
                                     Pick elements inside the iframe to anchor the feedback.
                                 </div>
                             </div>
@@ -195,8 +194,8 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                                     cursor: 'pointer',
                                     fontSize: 12,
                                     fontWeight: 700,
-                                    color: '#eff6ff',
-                                    background: isSelecting ? '#ef4444' : '#2563eb'
+                                    color: '#fff',
+                                    background: isSelecting ? 'var(--status-danger, #ef4444)' : 'var(--accent, #008CFF)'
                                 }}
                             >
                                 {isSelecting ? 'Stop selecting' : 'Select elements'}
@@ -212,10 +211,10 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                                         onClick={() => onRemoveAnnotation(index)}
                                         title={annotation.elementSelector}
                                         style={{
-                                            border: '1px solid rgba(59, 130, 246, 0.38)',
+                                            border: '1px solid var(--border-key, rgba(0, 140, 255, 0.25))',
                                             borderRadius: 999,
-                                            background: 'rgba(37, 99, 235, 0.16)',
-                                            color: '#dbeafe',
+                                            background: 'var(--bg-key, rgba(0, 140, 255, 0.08))',
+                                            color: 'var(--text-secondary, #494440)',
                                             padding: '7px 10px',
                                             cursor: 'pointer',
                                             fontSize: 12,
@@ -230,10 +229,10 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                             <div
                                 style={{
                                     borderRadius: 12,
-                                    border: '1px dashed rgba(148, 163, 184, 0.25)',
+                                    border: '1px dashed var(--border-key, #EDEDED)',
                                     padding: 12,
                                     fontSize: 12,
-                                    color: '#94a3b8'
+                                    color: 'var(--text-muted, #848281)'
                                 }}
                             >
                                 No elements selected yet.
@@ -248,7 +247,7 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                                     justifySelf: 'start',
                                     border: 'none',
                                     background: 'transparent',
-                                    color: '#93c5fd',
+                                    color: 'var(--accent, #008CFF)',
                                     cursor: 'pointer',
                                     fontSize: 12,
                                     padding: 0
@@ -260,7 +259,7 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                     </div>
 
                     <div style={{ display: 'grid', gap: 8 }}>
-                        <label style={{ fontSize: 12, color: '#cbd5e1' }}>What should change?</label>
+                        <label style={{ fontSize: 12, color: 'var(--text-secondary, #494440)' }}>What should change?</label>
                         <textarea
                             value={comment}
                             onChange={(event) => onCommentChange(event.target.value)}
@@ -269,10 +268,10 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                             style={{
                                 width: '100%',
                                 resize: 'vertical',
-                                border: '1px solid rgba(148, 163, 184, 0.28)',
+                                border: '1px solid var(--border-key, #EDEDED)',
                                 borderRadius: 12,
-                                background: 'rgba(15, 23, 42, 0.85)',
-                                color: '#f8fafc',
+                                background: 'var(--bg-key, #FFFFFF)',
+                                color: 'var(--text-primary, #121212)',
                                 padding: '12px 14px',
                                 fontSize: 13,
                                 lineHeight: 1.5
@@ -284,9 +283,9 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                         <div
                             style={{
                                 borderRadius: 12,
-                                border: '1px solid rgba(239, 68, 68, 0.3)',
-                                background: 'rgba(239, 68, 68, 0.12)',
-                                color: '#fecaca',
+                                border: '1px solid var(--status-danger, rgba(239, 68, 68, 0.3))',
+                                background: 'var(--status-danger-bg, rgba(239, 68, 68, 0.08))',
+                                color: 'var(--status-danger, #dc2626)',
                                 padding: '10px 12px',
                                 fontSize: 12
                             }}
@@ -299,9 +298,9 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                         <div
                             style={{
                                 borderRadius: 12,
-                                border: '1px solid rgba(59, 130, 246, 0.3)',
-                                background: 'rgba(37, 99, 235, 0.12)',
-                                color: '#bfdbfe',
+                                border: '1px solid var(--border-key, rgba(0, 140, 255, 0.2))',
+                                background: 'var(--bg-key, rgba(0, 140, 255, 0.06))',
+                                color: 'var(--text-secondary, #494440)',
                                 padding: '10px 12px',
                                 fontSize: 12
                             }}
@@ -318,9 +317,9 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                             style={{
                                 flex: 1,
                                 borderRadius: 12,
-                                border: '1px solid rgba(148, 163, 184, 0.24)',
-                                background: 'rgba(30, 41, 59, 0.92)',
-                                color: '#e2e8f0',
+                                border: '1px solid var(--border-key, #EDEDED)',
+                                background: 'var(--bg-secondary, #F6F4EF)',
+                                color: 'var(--text-primary, #121212)',
                                 cursor: isSubmitting ? 'not-allowed' : 'pointer',
                                 padding: '11px 14px',
                                 fontSize: 13,
@@ -338,8 +337,8 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                                 flex: 1,
                                 border: 'none',
                                 borderRadius: 12,
-                                background: '#2563eb',
-                                color: '#eff6ff',
+                                background: 'var(--accent, #008CFF)',
+                                color: '#fff',
                                 cursor: isSubmitting ? 'not-allowed' : 'pointer',
                                 padding: '11px 14px',
                                 fontSize: 13,
@@ -357,10 +356,10 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                         <div
                             style={{
                                 borderRadius: 12,
-                                border: '1px dashed rgba(148, 163, 184, 0.25)',
+                                border: '1px dashed var(--border-key, #EDEDED)',
                                 padding: 14,
                                 fontSize: 12,
-                                color: '#94a3b8'
+                                color: 'var(--text-muted, #848281)'
                             }}
                         >
                             No feedback has been saved for this app yet.
@@ -371,8 +370,8 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                                 key={record.sid}
                                 style={{
                                     borderRadius: 14,
-                                    border: '1px solid rgba(148, 163, 184, 0.18)',
-                                    background: 'rgba(15, 23, 42, 0.74)',
+                                    border: '1px solid var(--border-key, #EDEDED)',
+                                    background: 'var(--bg-key, #FFFFFF)',
                                     padding: 14,
                                     display: 'grid',
                                     gap: 10
@@ -387,11 +386,11 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                                     }}
                                 >
                                     <div>
-                                        <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                                        <div style={{ fontSize: 12, color: 'var(--text-muted, #848281)' }}>
                                             {record.authorName ? `${record.authorName} - ` : ''}
                                             {record.authorEmail}
                                         </div>
-                                        <div style={{ marginTop: 4, fontSize: 12, color: '#cbd5e1' }}>
+                                        <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text-secondary, #494440)' }}>
                                             {formatTimestamp(record.createdAt)}
                                         </div>
                                     </div>
@@ -399,7 +398,7 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                                         style={{
                                             borderRadius: 999,
                                             padding: '5px 8px',
-                                            background: `${statusColor(record.status)}22`,
+                                            background: `color-mix(in srgb, ${statusColor(record.status)} 13%, transparent)`,
                                             color: statusColor(record.status),
                                             fontSize: 11,
                                             fontWeight: 700,
@@ -411,7 +410,7 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                                     </div>
                                 </div>
 
-                                <div style={{ fontSize: 13, lineHeight: 1.5, color: '#e2e8f0' }}>{record.comment}</div>
+                                <div style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--text-primary, #121212)' }}>{record.comment}</div>
 
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                                     {record.annotations.length > 0 ? (
@@ -420,17 +419,17 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                                                 key={`${record.sid}-${annotation.elementSelector}-${index}`}
                                                 style={{
                                                     borderRadius: 999,
-                                                    border: '1px solid rgba(59, 130, 246, 0.28)',
+                                                    border: '1px solid var(--border-key, rgba(0, 140, 255, 0.2))',
                                                     padding: '6px 9px',
                                                     fontSize: 11,
-                                                    color: '#bfdbfe'
+                                                    color: 'var(--text-secondary, #494440)'
                                                 }}
                                             >
                                                 {annotationLabel(annotation)}
                                             </span>
                                         ))
                                     ) : (
-                                        <span style={{ fontSize: 12, color: '#94a3b8' }}>No element annotations</span>
+                                        <span style={{ fontSize: 12, color: 'var(--text-muted, #848281)' }}>No element annotations</span>
                                     )}
                                 </div>
 
@@ -442,7 +441,7 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                                         gap: 12
                                     }}
                                 >
-                                    <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                                    <div style={{ fontSize: 11, color: 'var(--text-muted, #848281)' }}>
                                         Version {record.appVersionSid}
                                         {record.studioSessionSid ? ` - Studio ${record.studioSessionSid}` : ''}
                                     </div>
@@ -456,8 +455,8 @@ export default function FeedbackPanel(props: FeedbackPanelProps) {
                                             cursor: 'pointer',
                                             fontSize: 12,
                                             fontWeight: 600,
-                                            color: '#e2e8f0',
-                                            background: 'rgba(30, 41, 59, 0.9)'
+                                            color: 'var(--text-primary, #121212)',
+                                            background: 'var(--bg-secondary, #F6F4EF)'
                                         }}
                                     >
                                         Copy for agent
